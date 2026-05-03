@@ -1772,7 +1772,7 @@ header {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 520px) {
   main {
     padding: 80px 16px 30px;
   }
@@ -1794,7 +1794,7 @@ header {
   }
 
   .cards-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 
@@ -1814,6 +1814,12 @@ header {
 
   .product-actions {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 380px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
   }
 }
 
