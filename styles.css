@@ -45,7 +45,9 @@ main {
 
 header {
   position: fixed;
-  inset: 0 0 auto;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   width: 100%;
   backdrop-filter: blur(18px);
@@ -1774,15 +1776,66 @@ header {
 
 @media (max-width: 520px) {
   main {
-    padding: 80px 16px 30px;
+    padding: 110px 16px 220px;
+  }
+
+  header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 200;
+    background: rgba(255,255,255,0.98);
+    border-bottom: 1px solid rgba(15,23,42,.08);
   }
 
   .navbar {
-    padding: 12px 16px;
+    padding: 14px 16px;
+    justify-content: space-between;
+    background: rgba(255,255,255,1);
+    border-bottom: 1px solid rgba(15,23,42,.08);
+    margin: 0;
+    max-width: none;
+    width: 100%;
   }
 
   .brand {
     font-size: 1.1rem;
+    color: var(--text);
+  }
+
+  .menu {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-around;
+    align-items: center;
+    background: rgba(255,255,255,1);
+    border-top: 1px solid rgba(15,23,42,.08);
+    box-shadow: 0 -10px 30px rgba(15,23,42,.12);
+    z-index: 210;
+    min-height: 72px;
+  }
+
+  .menu a {
+    padding: 10px 12px;
+    flex: 1 1 calc(50% - 10px);
+    min-width: 0;
+    text-align: center;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.96);
+    color: var(--text);
+    box-shadow: 0 4px 12px rgba(15,23,42,.06);
+  }
+
+  .menu a:hover {
+    color: var(--text);
   }
 
   .hero-copy h1 {
