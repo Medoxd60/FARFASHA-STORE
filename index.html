@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FARFASHA - المتجر العصري</title>
+  <link rel="stylesheet" href="styles.css">
+  modyroaa8693
+</head>
+<body>
+  <header>
+    <div class="navbar">
+      <a class="brand" href="#home"><span>FAR</span>FASHA</a>
+      <nav class="menu">
+        <a href="#home" data-link="home">الرئيسية</a>
+        <a href="#products" data-link="products">المنتجات</a>
+        <a href="#cart" data-link="cart">السلة (<span id="cart-count">0</span>)</a>
+        <a href="#checkout" data-link="checkout">إتمام الطلب</a>
+        <a href="#admin" data-link="admin">لوحة التحكم</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="section-home" class="section-page">
+      <div class="section-title">
+        <div>
+          <h2>FARFASHA</h2>
+        </div>
+      </div>
+      <div class="hero">
+        <div class="hero-copy">
+          <h1>خلي كل تجربة شراء تصبح فرفشة</h1>
+          <p>متجر إلكتروني مصمم بعناية، واجهة مستخدم بسيطة، وسلة تسوق ذكية. استعرض منتجاتنا، أضف للسلة، و أكمل الطلب بخطوات سهلة.</p>
+          <div class="panel">
+            <button class="btn" onclick="window.location.hash='#products'">ابدأ التسوق</button>
+            <button class="secondary-btn" onclick="window.location.hash='#admin'">لوحة التحكم</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-box feature-highlight">
+          <h4>آمن وسهل</h4>
+          <p>نموذج طلب منظم مع اختيار طريقة الدفع وتأكيد واضح قبل الإرسال.</p>
+        </div>
+      </div>
+
+      <div class="categories-slider" id="category-slider" aria-label="فئات المنتجات"></div>
+
+      <div class="section-title" style="margin-top: 60px;">
+        <div>
+          <h2>أحدث المنتجات</h2>
+          <p>شوف أحدث المنتجات اللي ضفتها للمتجر واختار اللي يعجبك.</p>
+        </div>
+      </div>
+      <div class="cards-grid" id="latest-products-grid"></div>
+
+      <div class="section-title" style="margin-top: 60px;">
+        <div>
+          <h2>عروض وخصومات</h2>
+          <p>استغل العروض الحالية واشتري بأسعار أقل.</p>
+        </div>
+      </div>
+      <div class="cards-grid" id="discounted-products-grid"></div>
+
+      <div class="section-title" style="margin-top: 60px;">
+        <div>
+          <h2>أهم مميزاتنا</h2>
+          <p>تجربة تسوق سريعة وآمنة مع متابعة فورية لكل أوردر.</p>
+        </div>
+      </div>
+      <div class="advantages-grid">
+        <article class="advantage-card">
+          <div class="advantage-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 32L24 16L40 32L56 16" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M24 48L40 32L56 48" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h4>توصيل سريع</h4>
+        </article>
+        <article class="advantage-card">
+          <div class="advantage-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 20H52V44H12V20Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+              <path d="M20 20V12H44V20" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+              <path d="M20 32H44" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h4>الدفع عند الاستلام</h4>
+        </article>
+        <article class="advantage-card">
+          <div class="advantage-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="32" cy="32" r="18" stroke="currentColor" stroke-width="5"/>
+              <path d="M32 18V32L40 38" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+              <path d="M32 14C20.9543 14 12 22.9543 12 34C12 45.0457 20.9543 54 32 54C43.0457 54 52 45.0457 52 34" stroke="currentColor" stroke-width="5"/>
+            </svg>
+          </div>
+          <h4>المتابعة الفورية</h4>
+        </article>
+        <article class="advantage-card">
+          <div class="advantage-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 48H52V20L38 10H12V48Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+              <path d="M38 10V20H52" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+              <path d="M22 36H42" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+              <path d="M22 44H34" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h4>معاينة الأوردر</h4>
+        </article>
+      </div>
+
+      <div class="section-title" style="margin-top: 60px;">
+        <div>
+          <h2>اخترنا لك</h2>
+          <p>مجموعة منتقاة مخصوص ليك علشان تلاقي اللي يفتح نفسك.</p>
+        </div>
+      </div>
+      <div class="cards-grid" id="picked-products-grid"></div>
+      <div class="section-title" style="margin-top: 60px;">
+        <div>
+          <h2>تواصل معنا</h2>
+          <p>تابعنا على وسائل التواصل الاجتماعي وكن جزء من مجتمع FARFASHA.</p>
+        </div>
+      </div>
+      <div class="social-grid">
+        <a href="#" id="telegram-link" class="social-card">
+          <div class="social-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M32 4C16.536 4 4 16.536 4 32C4 47.464 16.536 60 32 60C47.464 60 60 47.464 60 32C60 16.536 47.464 4 32 4Z" stroke="currentColor" stroke-width="4"/>
+              <path d="M20 24L44 32L36 36L32 44L28 36L20 32L28 28L32 20L36 28L44 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h4>تليجرام</h4>
+        </a>
+        <a href="#" id="whatsapp-link" class="social-card">
+          <div class="social-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M32 4C16.536 4 4 16.536 4 32C4 47.464 16.536 60 32 60C47.464 60 60 47.464 60 32C60 16.536 47.464 4 32 4Z" stroke="currentColor" stroke-width="4"/>
+              <path d="M20 44L24 32C24 28 28 24 32 24C36 24 40 28 40 32L44 44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="32" cy="32" r="8" stroke="currentColor" stroke-width="4"/>
+            </svg>
+          </div>
+          <h4>واتساب</h4>
+        </a>
+        <a href="#" id="facebook-link" class="social-card">
+          <div class="social-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M32 4C16.536 4 4 16.536 4 32C4 47.464 16.536 60 32 60C47.464 60 60 47.464 60 32C60 16.536 47.464 4 32 4Z" stroke="currentColor" stroke-width="4"/>
+              <path d="M24 20V32H20V36H24V44H28V36H32L36 32H28V28H32V20H24Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h4>فيسبوك</h4>
+        </a>
+      </div>
+
+      <div class="section-title" style="margin-top: 60px;">
+        <div>
+          <h2>آراء عملائنا</h2>
+          <p>شاهد صور العملاء الحقيقية وتجاربهم مع FARFASHA.</p>
+        </div>
+      </div>
+      <div class="review-grid" id="review-images-grid"></div>
+    </section>
+
+    <section id="section-products" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2>منتجاتنا</h2>
+          <p>اختار المنتج اللي يعجبك و ضيفه للسلة بسهولة.</p>
+        </div>
+      </div>
+      <div class="cards-grid" id="products-grid"></div>
+    </section>
+
+    <section id="section-category" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2 id="category-page-title">الفئة</h2>
+          <p id="category-page-description">عرض المنتجات من الفئة المختارة.</p>
+        </div>
+      </div>
+      <div class="cards-grid" id="category-products-grid"></div>
+      <button class="secondary-btn" onclick="window.location.hash='#products'">عرض جميع المنتجات</button>
+    </section>
+
+    <section id="section-product-detail" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2 id="product-detail-title">تفاصيل المنتج</h2>
+          <p id="product-detail-category">الفئة</p>
+        </div>
+        <button class="secondary-btn" onclick="window.location.hash='#products'">العودة للمنتجات</button>
+      </div>
+      <div id="product-detail-content" class="product-detail-layout">
+        <!-- Product images will be rendered here -->
+      </div>
+    </section>
+
+    <section id="section-cart" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2>السلة</h2>
+          <p>تأكد من منتجاتك وعددها قبل إتمام الطلب.</p>
+        </div>
+      </div>
+      <div class="table-card table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>صورة</th>
+              <th>منتج</th>
+              <th>سعر</th>
+              <th>الكمية</th>
+              <th>الإجمالي</th>
+              <th>تحكم</th>
+            </tr>
+          </thead>
+          <tbody id="cart-items"></tbody>
+        </table>
+      </div>
+      <div class="summary-box" style="margin-top:20px;">
+        <div class="summary-row"><span>المجموع الكلي</span><strong id="cart-total">0 EGP</strong></div>
+        <button class="btn" onclick="window.location.hash='#checkout'">اكمل الطلب</button>
+      </div>
+    </section>
+
+    <section id="section-checkout" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2>إتمام الطلب</h2>
+          <p>أدخل بياناتك و اختر طريقة الدفع لإنهاء الطلب.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <form class="form-card" onsubmit="submitOrder(event)">
+          <h3>بيانات العميل</h3>
+          <div class="form-row">
+            <label>الاسم الكامل<input name="name" type="text" placeholder="اكتب اسمك" required></label>
+            <label>رقم التليفون<input name="phone" type="tel" placeholder="010XXXXXXXX" required></label>
+            <label>المحافظة<select id="checkout-governorate" name="governorate" onchange="buildSummary()" required></select></label>
+            <label>العنوان<textarea name="address" placeholder="العنوان بالكامل" required></textarea></label>
+            <label>ملاحظات إضافية<textarea name="notes" placeholder="لو عايز تضيف ملاحظة"></textarea></label>
+            <label>كوبون خصم<input name="coupon" type="text" placeholder="ادخل كود الخصم لاحقًا" oninput="buildSummary()"></label>
+            <label>طريقة الدفع<select name="payment" required>
+              <option value="الدفع عند الاستلام">الدفع عند الاستلام</option>
+              <option value="الدفع الإلكتروني">الدفع الإلكتروني</option>
+            </select></label>
+          </div>
+          <button class="btn" type="submit">إرسال الطلب</button>
+        </form>
+        <div class="summary-box" id="checkout-summary"></div>
+      </div>
+      <div id="confirm-message" class="alert hidden">تم إرسال طلبك بنجاح! هنبلغك قريبًا.</div>
+    </section>
+
+    <section id="section-admin" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2>لوحة تحكم الأدمن</h2>
+          <p>هنا تقدر تشوف الطلبات، تضيف منتجات، وتحذف اللي مش عايزه.</p>
+        </div>
+      </div>
+      <div id="admin-login" class="login-panel">
+        <article class="form-card">
+          <h3>تسجيل دخول الأدمن</h3>
+          <p>استخدم كلمة المرور: <strong>farfasha123</strong> للتجربة.</p>
+          <form onsubmit="loginAdmin(event)">
+            <label>كلمة المرور<input id="admin-password" type="password" placeholder="اكتب كلمة المرور" required></label>
+            <button class="btn" type="submit">دخول</button>
+          </form>
+          <p id="admin-error" style="color:#ff8b8b; margin-top:14px;"></p>
+        </article>
+      </div>
+      <div id="admin-panel" class="hidden">
+        <div class="admin-card">
+          <div class="admin-body">
+            <h3 id="admin-greeting">أهلاً بك</h3>
+            <p>متابعة الطلبات الحالية وإدارة المنتجات من هنا. <span id="order-count" style="color: var(--accent); font-weight: bold;">0</span> طلب جديد.</p>
+          </div>
+        </div>
+        <div class="admin-tabs">
+          <button class="tab-btn active" data-tab="products" onclick="switchAdminTab(event)">إدارة المنتجات</button>
+          <button class="tab-btn" data-tab="orders" onclick="switchAdminTab(event)">طلبات العملاء <span id="admin-order-badge" style="margin-left:8px; color: var(--accent)">0</span></button>
+          <button class="tab-btn" data-tab="categories" onclick="switchAdminTab(event)">فئات المنتجات</button>
+          <button class="tab-btn" data-tab="social" onclick="switchAdminTab(event)">تواصل معنا</button>
+          <button class="tab-btn" data-tab="reviews" onclick="switchAdminTab(event)">آراء العملاء</button>
+          <button class="tab-btn" data-tab="shipping" onclick="switchAdminTab(event)">الشحن</button>
+          <button class="tab-btn" data-tab="coupons" onclick="switchAdminTab(event)">الكوبونات</button>
+        </div>
+        <div class="admin-tab-panel" data-tab="products">
+          <article class="form-card">
+            <h3>أضف منتج جديد</h3>
+            <form id="add-product-form" onsubmit="addNewProduct(event)">
+              <label>اسم المنتج<input id="new-name" type="text" placeholder="اسم المنتج" required></label>
+              <label>السعر<input id="new-price" type="number" placeholder="السعر بالجنية" required></label>
+              <label>السعر الأصلي (اختياري للخصم)<input id="new-original-price" type="number" placeholder="السعر الأصلي"></label>
+              <label>الفئة<select id="new-category" required>
+                <option value="">اختر الفئة</option>
+              </select></label>
+              <label class="switch-row">حالة التوفر
+                <div class="switch">
+                  <input id="new-available" type="checkbox" checked>
+                  <span class="slider"></span>
+                </div>
+              </label>
+              <label>وصف المنتج<textarea id="new-desc" placeholder="وصف جذاب" required></textarea></label>
+              <div class="image-upload-section">
+                <label>الصورة الرئيسية<input id="new-main-image" type="file" accept="image/*" onchange="previewMainImage(event)"></label>
+                <div id="main-image-preview" class="image-preview"></div>
+              </div>
+              <div class="image-upload-section">
+                <label>المعرض (صور إضافية)<input id="new-gallery-images" type="file" accept="image/*" multiple onchange="previewGalleryImages(event)"></label>
+                <div id="gallery-images-preview" class="image-preview-grid"></div>
+              </div>
+              <button class="btn" type="submit">حفظ المنتج</button>
+            </form>
+          </article>
+          <div class="admin-search-bar">
+            <input id="admin-product-search" type="search" placeholder="ابحث عن منتج بالاسم أو الفئة" oninput="renderAdminProducts(this.value, 1)">
+          </div>
+          <div class="table-card table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>صورة</th>
+                  <th>اسم المنتج</th>
+                  <th>الفئة</th>
+                  <th>التوفر</th>
+                  <th>السعر</th>
+                  <th>سعر التخفيض</th>
+                  <th>تحكم</th>
+                </tr>
+              </thead>
+              <tbody id="admin-products-table"></tbody>
+            </table>
+          </div>
+          <div id="admin-pagination" class="pagination-controls"></div>
+        </div>
+        <div class="admin-tab-panel hidden" data-tab="orders">
+          <div class="admin-search-bar">
+            <input id="admin-order-search" type="search" placeholder="ابحث عن طلب بالاسم أو رقم الطلب أو رقم التليفون" oninput="renderOrders(this.value)">
+          </div>
+          <div id="orders-list"></div>
+        </div>
+        <div class="admin-tab-panel hidden" data-tab="categories">
+          <article class="form-card">
+            <h3 id="category-form-title">إضافة فئة جديدة</h3>
+            <form id="category-form" onsubmit="addOrUpdateCategory(event)">
+              <label>اسم الفئة<input id="category-name" type="text" placeholder="اسم الفئة" required></label>
+              <label>اختر صورة أو أيقونة من الجهاز<input id="category-img-input" type="file" accept="image/*"></label>
+              <button class="btn" type="submit" id="category-submit-btn">إضافة فئة</button>
+            </form>
+            <div id="category-preview-list" class="category-admin-grid" style="margin-top:18px;"></div>
+          </article>
+        </div>
+        <div class="admin-tab-panel hidden" data-tab="social">
+          <article class="form-card">
+            <h3>إدارة روابط التواصل</h3>
+            <form id="social-links-form" onsubmit="updateSocialLinks(event)">
+              <label>رابط تليجرام<input id="telegram-url" type="url" placeholder="https://t.me/..."></label>
+              <label>رابط واتساب<input id="whatsapp-url" type="url" placeholder="https://wa.me/..."></label>
+              <label>رابط فيسبوك<input id="facebook-url" type="url" placeholder="https://facebook.com/..."></label>
+              <button class="btn" type="submit">حفظ الروابط</button>
+            </form>
+          </article>
+        </div>
+        <div class="admin-tab-panel hidden" data-tab="reviews">
+          <article class="form-card">
+            <h3>آراء العملاء</h3>
+            <form id="review-images-form" onsubmit="addReviewImage(event)">
+              <label>اختر صورة من جهازك<input id="review-image-input" type="file" accept="image/*" required></label>
+              <button class="btn" type="submit">إضافة صورة</button>
+            </form>
+            <div id="review-images-preview" class="cards-grid" style="margin-top:18px;"></div>
+          </article>
+        </div>
+        <div class="admin-tab-panel hidden" data-tab="shipping">
+          <article class="form-card">
+            <h3>إدارة أسعار الشحن</h3>
+            <div id="shipping-rates-list"></div>
+            <div style="margin-top: 20px; display:flex; gap:12px; flex-wrap:wrap;">
+              <button class="btn" onclick="addNewGovernorate()">إضافة محافظة جديدة</button>
+              <button class="btn" onclick="saveShippingRates()">حفظ التغييرات</button>
+            </div>
+          </article>
+        </div>
+        <div class="admin-tab-panel hidden" data-tab="coupons">
+          <article class="form-card">
+            <h3>إدارة الكوبونات</h3>
+            <form id="coupon-form" onsubmit="saveCoupon(event)">
+              <label>رمز الكوبون<input id="coupon-code" type="text" placeholder="أدخل رمز الكوبون" required></label>
+              <label>نوع الخصم<select id="coupon-type" required>
+                <option value="percent">نسبة مئوية %</option>
+                <option value="fixed">قيمة ثابتة</option>
+              </select></label>
+              <label>قيمة الخصم<input id="coupon-value" type="number" placeholder="مثلاً 10" min="0" required></label>
+              <label>تاريخ البداية<input id="coupon-start" type="date" required></label>
+              <label>تاريخ النهاية<input id="coupon-end" type="date" required></label>
+              <label class="switch-row">نشط
+                <div class="switch">
+                  <input id="coupon-active" type="checkbox" checked>
+                  <span class="slider"></span>
+                </div>
+              </label>
+              <input id="coupon-id" type="hidden">
+              <button class="btn" type="submit">حفظ الكوبون</button>
+            </form>
+          </article>
+          <div class="admin-search-bar" style="margin-top: 18px;">
+            <input id="admin-coupon-search" type="search" placeholder="ابحث عن كوبون بالرمز" oninput="renderCoupons(this.value)">
+          </div>
+          <div class="table-card table-scroll" style="margin-top: 16px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>الرمز</th>
+                  <th>النوع</th>
+                  <th>الخصم</th>
+                  <th>من</th>
+                  <th>إلى</th>
+                  <th>الحالة</th>
+                  <th>تحكم</th>
+                </tr>
+              </thead>
+              <tbody id="admin-coupons-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
