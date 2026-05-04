@@ -1621,25 +1621,24 @@ function initCategorySliderDrag() {
     if (!isDragging) return;
     event.preventDefault();
     const x = event.pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 1.2;
+    const walk = (x - startX) * 1.5;
     categorySlider.scrollLeft = scrollLeft - walk;
   });
 
   categorySlider.addEventListener('touchstart', (event) => {
-    event.preventDefault();
     startX = event.touches[0].pageX - categorySlider.offsetLeft;
     scrollLeft = categorySlider.scrollLeft;
-  }, { passive: false });
+  }, { passive: true });
 
   categorySlider.addEventListener('touchmove', (event) => {
-    event.preventDefault();
     const x = event.touches[0].pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 2;
+    const walk = (x - startX) * 3;
     categorySlider.scrollLeft = scrollLeft - walk;
-  }, { passive: false });
+  }, { passive: true });
 
   categorySlider.addEventListener('touchend', () => {
-    // Reset if needed
+    isDragging = false;
+    categorySlider.classList.remove('dragging');
   });
 }
 
