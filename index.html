@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,8 +10,11 @@
 <body>
   <header>
     <div class="navbar">
+      <button class="mobile-menu-toggle" type="button" aria-label="فتح القائمة" aria-expanded="false">
+        <span></span>
+      </button>
       <a class="brand" href="#home"><span>FAR</span>FASHA</a>
-      <nav class="menu">
+      <nav class="menu" aria-label="القائمة الرئيسية">
         <a href="#home" data-link="home">الرئيسية</a>
         <a href="#products" data-link="products">المنتجات</a>
         <a href="#cart" data-link="cart">السلة (<span id="cart-count">0</span>)</a>
