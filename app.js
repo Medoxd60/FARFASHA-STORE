@@ -1621,7 +1621,7 @@ function initCategorySliderDrag() {
     if (!isDragging) return;
     event.preventDefault();
     const x = event.pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 1.5;
+    const walk = (x - startX) * 2.8;
     categorySlider.scrollLeft = scrollLeft - walk;
   });
 
@@ -1635,7 +1635,7 @@ function initCategorySliderDrag() {
   categorySlider.addEventListener('touchmove', (event) => {
     if (!isDragging) return;
     const x = event.touches[0].pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 2.5;
+    const walk = (x - startX) * 4.5;
     categorySlider.scrollLeft = scrollLeft - walk;
   }, { passive: true });
 
