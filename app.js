@@ -1599,12 +1599,21 @@ function initCategorySliderDrag() {
   let isDragging = false;
   let startX;
   let scrollLeft;
+  let animationId;
+  let lastX;
+  let velocity = 0;
+
+  const updateScroll = (newScrollLeft) => {
+    categorySlider.scrollLeft = newScrollLeft;
+  };
 
   categorySlider.addEventListener('mousedown', (event) => {
     isDragging = true;
     categorySlider.classList.add('dragging');
     startX = event.pageX - categorySlider.offsetLeft;
     scrollLeft = categorySlider.scrollLeft;
+    lastX = event.pageX;
+    velocity = 0;
   });
 
   categorySlider.addEventListener('mouseleave', () => {
@@ -1621,19 +1630,35 @@ function initCategorySliderDrag() {
     if (!isDragging) return;
     event.preventDefault();
     const x = event.pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 1.5;
-    categorySlider.scrollLeft = scrollLeft - walk;
+    const deltaX = event.pageX - lastX;
+    velocity = deltaX * 0.8 + velocity * 0.2; // Smooth velocity
+    const walk = (x - startX) * 1.8 + velocity * 1;
+    const newScrollLeft = scrollLeft - walk;
+    lastX = event.pageX;
+    if (animationId) cancelAnimationFrame(animationId);
+    animationId = requestAnimationFrame(() => updateScroll(newScrollLeft));
   });
 
   categorySlider.addEventListener('touchstart', (event) => {
+    isDragging = true;
+    categorySlider.classList.add('dragging');
     startX = event.touches[0].pageX - categorySlider.offsetLeft;
     scrollLeft = categorySlider.scrollLeft;
+    lastX = event.touches[0].pageX;
+    velocity = 0;
   }, { passive: true });
 
   categorySlider.addEventListener('touchmove', (event) => {
-    const x = event.touches[0].pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 3;
-    categorySlider.scrollLeft = scrollLeft - walk;
+    if (!isDragging) return;
+    const touch = event.touches[0];
+    const x = touch.pageX - categorySlider.offsetLeft;
+    const deltaX = touch.pageX - lastX;
+    velocity = deltaX * 0.8 + velocity * 0.2; // Smooth velocity
+    const walk = (x - startX) * 2 + velocity * 1;
+    const newScrollLeft = scrollLeft - walk;
+    lastX = touch.pageX;
+    if (animationId) cancelAnimationFrame(animationId);
+    animationId = requestAnimationFrame(() => updateScroll(newScrollLeft));
   }, { passive: true });
 
   categorySlider.addEventListener('touchend', () => {
