@@ -386,7 +386,7 @@ async function saveToFirestore(collectionName, docId, data) {
   try {
     const { error } = await supabaseClient
       .from('settings')
-      .upsert({ key: docId, value: data }, { onConflict: 'key' });
+      .upsert({ key: docId, value: data });
     if (error) throw error;
   } catch (error) {
     console.error('Error saving settings to Supabase:', error);
@@ -1540,7 +1540,7 @@ function addNewProduct(event) {
   renderAdminProducts(adminProductSearch, adminProductPage);
 }
 
-function updateSocialLinks(event) {
+async function updateSocialLinks(event) {
   event.preventDefault();
   const telegram = document.getElementById('telegram-url').value.trim() || '#';
   const whatsapp = document.getElementById('whatsapp-url').value.trim() || '#';
@@ -1548,10 +1548,15 @@ function updateSocialLinks(event) {
   state.social.telegram = telegram;
   state.social.whatsapp = whatsapp;
   state.social.facebook = facebook;
-  saveToFirestore('settings', 'social', state.social);
-  updateSocialLinksDisplay();
-  event.target.reset();
-  alert('تم حفظ الروابط بنجاح!');
+  try {
+    await saveToFirestore('settings', 'social', state.social);
+    updateSocialLinksDisplay();
+    event.target.reset();
+    alert('تم حفظ الروابط بنجاح!');
+  } catch (error) {
+    console.error('خطأ في حفظ الروابط:', error);
+    alert('حدث خطأ في حفظ الروابط. جرب تاني.');
+  }
 }
 
 function updateSocialLinksDisplay() {
