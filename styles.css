@@ -349,8 +349,14 @@ header {
   padding: 16px 0;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
-  touch-action: none;
+  touch-action: pan-y;
   margin-top: 20px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.categories-slider::-webkit-scrollbar {
+  display: none;
 }
 
 .categories-slider.dragging {
