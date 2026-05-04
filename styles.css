@@ -1743,16 +1743,31 @@ header {
     align-items: center;
     justify-content: space-between;
     position: relative;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .brand,
+  .mobile-menu-toggle,
+  .menu {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .mobile-menu-toggle {
     display: inline-flex;
+    order: 1;
+  }
+
+  .brand {
+    order: 2;
   }
 
   .menu {
     display: none;
     width: 100%;
     justify-content: flex-start;
+    order: 3;
   }
 
   .menu.open {
