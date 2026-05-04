@@ -386,7 +386,7 @@ async function saveToFirestore(collectionName, docId, data) {
   try {
     const { error } = await supabaseClient
       .from('settings')
-      .upsert({ key: docId, value: data });
+      .upsert({ id: docId, data: data });
     if (error) throw error;
   } catch (error) {
     console.error('Error saving settings to Supabase:', error);
@@ -402,8 +402,8 @@ async function loadFromFirestore(collectionName, docId) {
   try {
     const { data, error } = await supabaseClient
       .from('settings')
-      .select('value')
-      .eq('key', docId)
+      .select('data')
+      .eq('id', docId)
       .single();
     if (error) {
       if (error.code === 'PGRST116' || error.details?.includes('No rows')) {
@@ -412,7 +412,7 @@ async function loadFromFirestore(collectionName, docId) {
       console.error('Error loading settings from Supabase:', error);
       return null;
     }
-    return data?.value || null;
+    return data?.data || null;
   } catch (error) {
     console.error('Error loading settings from Supabase:', error);
     return null;
