@@ -8,6 +8,27 @@ const sections = {
   admin: document.getElementById('section-admin'),
 };
 const navLinks = document.querySelectorAll('[data-link]');
+const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
+const mobileMenu = document.querySelector('.menu');
+
+function closeMobileMenu() {
+  if (!mobileMenu) return;
+  mobileMenu.classList.remove('open');
+  if (mobileMenuToggle) mobileMenuToggle.setAttribute('aria-expanded', 'false');
+}
+
+function toggleMobileMenu() {
+  if (!mobileMenu || !mobileMenuToggle) return;
+  const opened = mobileMenu.classList.toggle('open');
+  mobileMenuToggle.setAttribute('aria-expanded', opened ? 'true' : 'false');
+}
+
+navLinks.forEach(link => link.addEventListener('click', closeMobileMenu));
+if (mobileMenuToggle) mobileMenuToggle.addEventListener('click', toggleMobileMenu);
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 960) closeMobileMenu();
+});
+
 const productGrid = document.getElementById('products-grid');
 const latestProductsGrid = document.getElementById('latest-products-grid');
 const discountedProductsGrid = document.getElementById('discounted-products-grid');
