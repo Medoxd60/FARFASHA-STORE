@@ -8,6 +8,27 @@ const sections = {
   admin: document.getElementById('section-admin'),
 };
 const navLinks = document.querySelectorAll('[data-link]');
+const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
+const mobileMenu = document.querySelector('.menu');
+
+function closeMobileMenu() {
+  if (!mobileMenu) return;
+  mobileMenu.classList.remove('open');
+  if (mobileMenuToggle) mobileMenuToggle.setAttribute('aria-expanded', 'false');
+}
+
+function toggleMobileMenu() {
+  if (!mobileMenu || !mobileMenuToggle) return;
+  const opened = mobileMenu.classList.toggle('open');
+  mobileMenuToggle.setAttribute('aria-expanded', opened ? 'true' : 'false');
+}
+
+navLinks.forEach(link => link.addEventListener('click', closeMobileMenu));
+if (mobileMenuToggle) mobileMenuToggle.addEventListener('click', toggleMobileMenu);
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 960) closeMobileMenu();
+});
+
 const productGrid = document.getElementById('products-grid');
 const latestProductsGrid = document.getElementById('latest-products-grid');
 const discountedProductsGrid = document.getElementById('discounted-products-grid');
@@ -1600,25 +1621,27 @@ function initCategorySliderDrag() {
     if (!isDragging) return;
     event.preventDefault();
     const x = event.pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 1.2;
+    const walk = (x - startX) * 2.5;
     categorySlider.scrollLeft = scrollLeft - walk;
   });
 
   categorySlider.addEventListener('touchstart', (event) => {
-    event.preventDefault();
+    isDragging = true;
+    categorySlider.classList.add('dragging');
     startX = event.touches[0].pageX - categorySlider.offsetLeft;
     scrollLeft = categorySlider.scrollLeft;
-  }, { passive: false });
+  }, { passive: true });
 
   categorySlider.addEventListener('touchmove', (event) => {
-    event.preventDefault();
+    if (!isDragging) return;
     const x = event.touches[0].pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 2;
+    const walk = (x - startX) * 4;
     categorySlider.scrollLeft = scrollLeft - walk;
-  }, { passive: false });
+  }, { passive: true });
 
   categorySlider.addEventListener('touchend', () => {
-    // Reset if needed
+    isDragging = false;
+    categorySlider.classList.remove('dragging');
   });
 }
 
