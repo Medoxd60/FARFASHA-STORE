@@ -1665,9 +1665,9 @@ async function updateSocialLinks(event) {
 }
 
 function updateSocialLinksDisplay() {
-  document.getElementById('telegram-link').href = state.social.telegram;
-  document.getElementById('whatsapp-link').href = state.social.whatsapp;
-  document.getElementById('facebook-link').href = state.social.facebook;
+  document.getElementById('telegram-link').href = state.social.telegram || '#';
+  document.getElementById('whatsapp-link').href = state.social.whatsapp || '#';
+  document.getElementById('facebook-link').href = state.social.facebook || '#';
 }
 
 function switchAdminTab(event) {
