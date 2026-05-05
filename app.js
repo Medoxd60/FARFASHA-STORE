@@ -122,7 +122,7 @@ let galleryImagesData = [];
 const SUPABASE_URL = 'https://spvrkohlqflsyjiexcvo.supabase.co';
 const SUPABASE_PUBLIC_KEY = 'sb_publishable_hFZTx_2ZRGoWv93qFMnuRw_G_WNueVe';
 let supabaseClient = null;
-let settingsField = 'data';
+let settingsField = 'value'; // Changed default to 'value' as it's more common in Supabase settings tables
 
 class SimpleSupabaseClient {
   constructor(url, key) {
@@ -333,18 +333,27 @@ function handleRealtimeSettings(eventType, newRow, oldRow) {
   const row = newRow || oldRow;
   if (!row || !row.id) return;
 
+  let settingsData;
+  if (row.data !== undefined) {
+    settingsData = row.data;
+  } else if (row.value !== undefined) {
+    settingsData = row.value;
+  } else {
+    return; // No valid settings data
+  }
+
   if (row.id === 'social') {
-    state.social = row.data || state.social;
+    state.social = settingsData || state.social;
     updateSocialLinksDisplay();
   }
 
   if (row.id === 'shipping_rates') {
-    state.shippingRates = row.data?.rates || state.shippingRates;
+    state.shippingRates = settingsData?.rates || state.shippingRates;
     populateGovernorateOptions();
   }
 
   if (row.id === 'review_images') {
-    state.reviewImages = row.data?.images || state.reviewImages;
+    state.reviewImages = settingsData?.images || state.reviewImages;
     renderReviewImages();
     renderReviewImagesPreview();
   }
