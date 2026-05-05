@@ -598,20 +598,13 @@ async function directSupabaseRequest(path, method = 'GET', body = null, extraHea
 async function loadSocialSettingsRow() {
   if (!supabaseClient) return null;
 
-  const queries = [
-    'settings?select=key,id,data,value&key=eq.social',
-    'settings?select=key,id,data,value&id=eq.social'
-  ];
-
-  for (const query of queries) {
-    try {
-      const data = await directSupabaseRequest(query, 'GET');
-      if (Array.isArray(data) && data.length > 0) {
-        return data[0];
-      }
-    } catch (error) {
-      console.warn(`Unable to load social settings row with query ${query}:`, error.message);
+  try {
+    const data = await directSupabaseRequest('settings?select=key,id,value&key=eq.social', 'GET');
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0];
     }
+  } catch (error) {
+    console.warn(`Unable to load social settings row:`, error.message);
   }
 
   return null;
@@ -631,33 +624,19 @@ async function saveSocialSettings(social) {
     return false;
   }
 
-  const payload = { key: 'social', value: social };
-  const headers = {
-    Prefer: 'return=representation,resolution=merge-duplicates,onConflict=key'
-  };
+  const existing = await loadSocialSettingsRow();
+  const payload = { value: social };
 
   try {
-    await directSupabaseRequest('settings', 'POST', payload, headers);
+    if (existing) {
+      await directSupabaseRequest('settings?key=eq.social', 'PATCH', payload);
+      return true;
+    }
+
+    await directSupabaseRequest('settings', 'POST', { key: 'social', value: social });
     return true;
   } catch (error) {
-    console.warn('Unable to save social settings with upsert:', error.message);
-  }
-
-  // Fallback for tables without a unique key constraint on `key`
-  const fallbackPayloads = [
-    { key: 'social', value: social },
-    { id: 'social', value: social },
-    { key: 'social', data: social },
-    { id: 'social', data: social }
-  ];
-
-  for (const attempt of fallbackPayloads) {
-    try {
-      await directSupabaseRequest('settings', 'POST', attempt);
-      return true;
-    } catch (error) {
-      console.warn(`Social insert fallback failed with payload ${JSON.stringify(attempt)}:`, error.message);
-    }
+    console.warn('Unable to save social settings via PATCH/POST:', error.message);
   }
 
   return false;
