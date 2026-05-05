@@ -122,6 +122,7 @@ let galleryImagesData = [];
 const SUPABASE_URL = 'https://spvrkohlqflsyjiexcvo.supabase.co';
 const SUPABASE_PUBLIC_KEY = 'sb_publishable_hFZTx_2ZRGoWv93qFMnuRw_G_WNueVe';
 let supabaseClient = null;
+let settingsField = 'data';
 
 class SimpleSupabaseClient {
   constructor(url, key) {
@@ -134,6 +135,7 @@ class SimpleSupabaseClient {
     const headers = {
       'apikey': this.key,
       'Authorization': `Bearer ${this.key}`,
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
       ...options.headers
@@ -484,15 +486,42 @@ function mapCollectionToDb(collectionName, items) {
 }
 
 async function saveToFirestore(collectionName, docId, data) {
-  if (collectionName !== 'settings') return;
-  try {
-    const { error } = await supabaseClient
-      .from('settings')
-      .upsert({ id: docId, data: data });
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error saving settings to Supabase:', error);
+  if (collectionName !== 'settings') return false;
+  if (!supabaseClient) {
+    console.error('Supabase client is not initialized for saveToFirestore');
+    return false;
   }
+
+  const trySave = async (fieldName) => {
+    try {
+      const payload = { id: docId };
+      payload[fieldName] = data;
+      const { error } = await supabaseClient
+        .from('settings')
+        .upsert(payload);
+      if (error) throw error;
+      settingsField = fieldName;
+      return true;
+    } catch (error) {
+      if (error.message?.includes('HTTP error! status: 400') || error.message?.includes('column')) {
+        return false;
+      }
+      console.error('Error saving settings to Supabase:', error);
+      return false;
+    }
+  };
+
+  if (await trySave(settingsField)) {
+    return true;
+  }
+
+  const alternateField = settingsField === 'data' ? 'value' : 'data';
+  if (await trySave(alternateField)) {
+    return true;
+  }
+
+  console.error('Error saving settings to Supabase: failed to save using both data and value fields');
+  return false;
 }
 
 async function loadFromFirestore(collectionName, docId) {
@@ -504,7 +533,7 @@ async function loadFromFirestore(collectionName, docId) {
   try {
     const { data, error } = await supabaseClient
       .from('settings')
-      .select('data')
+      .select('*')
       .eq('id', docId)
       .single();
     if (error) {
@@ -514,7 +543,16 @@ async function loadFromFirestore(collectionName, docId) {
       console.error('Error loading settings from Supabase:', error);
       return null;
     }
-    return data?.data || null;
+    if (!data) return null;
+    if (data.data !== undefined) {
+      settingsField = 'data';
+      return data.data;
+    }
+    if (data.value !== undefined) {
+      settingsField = 'value';
+      return data.value;
+    }
+    return data;
   } catch (error) {
     console.error('Error loading settings from Supabase:', error);
     return null;
@@ -1654,7 +1692,10 @@ async function updateSocialLinks(event) {
   state.social.whatsapp = whatsapp;
   state.social.facebook = facebook;
   try {
-    await saveToFirestore('settings', 'social', state.social);
+    const saved = await saveToFirestore('settings', 'social', state.social);
+    if (!saved) {
+      throw new Error('فشل حفظ إعدادات التواصل');
+    }
     updateSocialLinksDisplay();
     fillSocialForm(); // Re-fill the form with saved values instead of resetting
     alert('تم حفظ الروابط بنجاح!');
