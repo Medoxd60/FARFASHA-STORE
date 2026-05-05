@@ -572,13 +572,14 @@ async function loadFromFirestore(collectionName, docId) {
   }
 }
 
-async function directSupabaseRequest(path, method = 'GET', body = null) {
+async function directSupabaseRequest(path, method = 'GET', body = null, extraHeaders = {}) {
   const headers = {
     apikey: SUPABASE_PUBLIC_KEY,
     Authorization: `Bearer ${SUPABASE_PUBLIC_KEY}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    Prefer: 'return=representation'
+    Prefer: 'return=representation',
+    ...extraHeaders
   };
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -630,44 +631,36 @@ async function saveSocialSettings(social) {
     return false;
   }
 
-  const existing = await loadSocialSettingsRow();
-  const fieldName = existing?.data !== undefined ? 'data' : 'value';
-  const identifierField = existing?.key ? 'key' : existing?.id ? 'id' : null;
-  const payload = { [fieldName]: social };
-
-  const buildPath = (idType) => {
-    if (idType === 'key') return 'settings?key=eq.social';
-    if (idType === 'id') return 'settings?id=eq.social';
-    return 'settings';
+  const payload = { key: 'social', value: social };
+  const headers = {
+    Prefer: 'return=representation,resolution=merge-duplicates,onConflict=key'
   };
 
   try {
-    if (existing && identifierField) {
-      await directSupabaseRequest(buildPath(identifierField), 'PATCH', payload);
-      return true;
-    }
-
-    const attempts = [
-      { selector: 'key', payload: { key: 'social', [fieldName]: social } },
-      { selector: 'id', payload: { id: 'social', [fieldName]: social } },
-      { selector: 'key', payload: { key: 'social', data: social } },
-      { selector: 'id', payload: { id: 'social', data: social } }
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        await directSupabaseRequest('settings', 'POST', attempt.payload);
-        return true;
-      } catch (error) {
-        console.warn(`Social insert failed with payload ${JSON.stringify(attempt.payload)}:`, error.message);
-      }
-    }
-
-    return false;
+    await directSupabaseRequest('settings', 'POST', payload, headers);
+    return true;
   } catch (error) {
-    console.warn('Unable to save social settings:', error.message);
-    return false;
+    console.warn('Unable to save social settings with upsert:', error.message);
   }
+
+  // Fallback for tables without a unique key constraint on `key`
+  const fallbackPayloads = [
+    { key: 'social', value: social },
+    { id: 'social', value: social },
+    { key: 'social', data: social },
+    { id: 'social', data: social }
+  ];
+
+  for (const attempt of fallbackPayloads) {
+    try {
+      await directSupabaseRequest('settings', 'POST', attempt);
+      return true;
+    } catch (error) {
+      console.warn(`Social insert fallback failed with payload ${JSON.stringify(attempt)}:`, error.message);
+    }
+  }
+
+  return false;
 }
 
 async function loadCollectionFromFirestore(collectionName) {
