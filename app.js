@@ -596,14 +596,24 @@ async function directSupabaseRequest(path, method = 'GET', body = null) {
 
 async function loadSocialSettingsRow() {
   if (!supabaseClient) return null;
-  try {
-    const data = await directSupabaseRequest('settings?select=key,data,value&key=eq.social', 'GET');
-    if (!Array.isArray(data) || data.length === 0) return null;
-    return data[0];
-  } catch (error) {
-    console.warn('Unable to load social settings row:', error.message);
-    return null;
+
+  const queries = [
+    'settings?select=key,id,data,value&key=eq.social',
+    'settings?select=key,id,data,value&id=eq.social'
+  ];
+
+  for (const query of queries) {
+    try {
+      const data = await directSupabaseRequest(query, 'GET');
+      if (Array.isArray(data) && data.length > 0) {
+        return data[0];
+      }
+    } catch (error) {
+      console.warn(`Unable to load social settings row with query ${query}:`, error.message);
+    }
   }
+
+  return null;
 }
 
 async function loadSocialSettings() {
@@ -621,31 +631,40 @@ async function saveSocialSettings(social) {
   }
 
   const existing = await loadSocialSettingsRow();
-  let fieldName = 'value';
-  if (existing?.data !== undefined) {
-    fieldName = 'data';
-  }
+  const fieldName = existing?.data !== undefined ? 'data' : 'value';
+  const identifierField = existing?.key ? 'key' : existing?.id ? 'id' : null;
+  const payload = { [fieldName]: social };
 
-  const payload = { key: 'social', [fieldName]: social };
+  const buildPath = (idType) => {
+    if (idType === 'key') return 'settings?key=eq.social';
+    if (idType === 'id') return 'settings?id=eq.social';
+    return 'settings';
+  };
 
   try {
-    if (existing) {
-      await directSupabaseRequest('settings?key=eq.social', 'PATCH', payload);
+    if (existing && identifierField) {
+      await directSupabaseRequest(buildPath(identifierField), 'PATCH', payload);
       return true;
     }
 
-    await directSupabaseRequest('settings', 'POST', payload);
-    return true;
-  } catch (error) {
-    if (!existing && fieldName === 'value') {
+    const attempts = [
+      { selector: 'key', payload: { key: 'social', [fieldName]: social } },
+      { selector: 'id', payload: { id: 'social', [fieldName]: social } },
+      { selector: 'key', payload: { key: 'social', data: social } },
+      { selector: 'id', payload: { id: 'social', data: social } }
+    ];
+
+    for (const attempt of attempts) {
       try {
-        const fallbackPayload = { key: 'social', data: social };
-        await directSupabaseRequest('settings', 'POST', fallbackPayload);
+        await directSupabaseRequest('settings', 'POST', attempt.payload);
         return true;
-      } catch (fallbackError) {
-        console.warn('Fallback insert for social settings failed:', fallbackError.message);
+      } catch (error) {
+        console.warn(`Social insert failed with payload ${JSON.stringify(attempt.payload)}:`, error.message);
       }
     }
+
+    return false;
+  } catch (error) {
     console.warn('Unable to save social settings:', error.message);
     return false;
   }
