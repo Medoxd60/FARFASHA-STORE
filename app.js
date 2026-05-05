@@ -1656,7 +1656,7 @@ async function updateSocialLinks(event) {
   try {
     await saveToFirestore('settings', 'social', state.social);
     updateSocialLinksDisplay();
-    event.target.reset();
+    fillSocialForm(); // Re-fill the form with saved values instead of resetting
     alert('تم حفظ الروابط بنجاح!');
   } catch (error) {
     console.error('خطأ في حفظ الروابط:', error);
