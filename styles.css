@@ -1170,9 +1170,10 @@ header {
   .gallery-thumb.category-thumb h4 {
     font-size: 0.8rem;
     padding: 6px;
+    gap: 20px;
   }
-}
-  gap: 20px;
+
+  
 }
 
 .product-detail-info h3 {

@@ -331,7 +331,8 @@ function handleRealtimeOrders(eventType, newRow, oldRow) {
 
 function handleRealtimeSettings(eventType, newRow, oldRow) {
   const row = newRow || oldRow;
-  if (!row || !row.key) return; // Changed from id to key
+  if (!row || (!row.key && !row.id)) return;
+  const rowKey = row.key || row.id;
 
   let settingsData;
   if (row.data !== undefined) {
@@ -342,17 +343,17 @@ function handleRealtimeSettings(eventType, newRow, oldRow) {
     return; // No valid settings data
   }
 
-  if (row.key === 'social') { // Changed from id to key
+  if (rowKey === 'social') {
     state.social = settingsData || state.social;
     updateSocialLinksDisplay();
   }
 
-  if (row.key === 'shipping_rates') { // Changed from id to key
+  if (rowKey === 'shipping_rates') {
     state.shippingRates = settingsData?.rates || state.shippingRates;
     populateGovernorateOptions();
   }
 
-  if (row.key === 'review_images') { // Changed from id to key
+  if (rowKey === 'review_images') {
     state.reviewImages = settingsData?.images || state.reviewImages;
     renderReviewImages();
     renderReviewImagesPreview();
@@ -568,6 +569,85 @@ async function loadFromFirestore(collectionName, docId) {
     // If any exception, just return null
     console.warn('Exception loading settings, continuing without:', error.message);
     return null;
+  }
+}
+
+async function directSupabaseRequest(path, method = 'GET', body = null) {
+  const headers = {
+    apikey: SUPABASE_PUBLIC_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLIC_KEY}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Prefer: 'return=representation'
+  };
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Supabase request failed: ${response.status} ${response.statusText} ${text}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+async function loadSocialSettingsRow() {
+  if (!supabaseClient) return null;
+  try {
+    const data = await directSupabaseRequest('settings?select=key,data,value&key=eq.social', 'GET');
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data[0];
+  } catch (error) {
+    console.warn('Unable to load social settings row:', error.message);
+    return null;
+  }
+}
+
+async function loadSocialSettings() {
+  const row = await loadSocialSettingsRow();
+  if (!row) return null;
+  if (row.data !== undefined) return row.data;
+  if (row.value !== undefined) return row.value;
+  return null;
+}
+
+async function saveSocialSettings(social) {
+  if (!supabaseClient) {
+    console.error('Supabase client is not initialized for saveSocialSettings');
+    return false;
+  }
+
+  const existing = await loadSocialSettingsRow();
+  let fieldName = 'value';
+  if (existing?.data !== undefined) {
+    fieldName = 'data';
+  }
+
+  const payload = { key: 'social', [fieldName]: social };
+
+  try {
+    if (existing) {
+      await directSupabaseRequest('settings?key=eq.social', 'PATCH', payload);
+      return true;
+    }
+
+    await directSupabaseRequest('settings', 'POST', payload);
+    return true;
+  } catch (error) {
+    if (!existing && fieldName === 'value') {
+      try {
+        const fallbackPayload = { key: 'social', data: social };
+        await directSupabaseRequest('settings', 'POST', fallbackPayload);
+        return true;
+      } catch (fallbackError) {
+        console.warn('Fallback insert for social settings failed:', fallbackError.message);
+      }
+    }
+    console.warn('Unable to save social settings:', error.message);
+    return false;
   }
 }
 
@@ -1704,13 +1784,14 @@ async function updateSocialLinks(event) {
   state.social.whatsapp = whatsapp;
   state.social.facebook = facebook;
   try {
-    const saved = await saveToFirestore('settings', 'social', state.social);
+    const saved = await saveSocialSettings(state.social);
     if (!saved) {
-      console.warn('فشل حفظ إعدادات التواصل، لكن سيتم تحديث العرض محلياً');
+      alert('حدث خطأ في حفظ الروابط على Supabase، لكن العرض سيُحدَّث محلياً.');
+    } else {
+      alert('تم حفظ الروابط بنجاح!');
     }
     updateSocialLinksDisplay();
     fillSocialForm(); // Re-fill the form with saved values instead of resetting
-    alert('تم حفظ الروابط بنجاح!');
   } catch (error) {
     console.error('خطأ في حفظ الروابط:', error);
     alert('حدث خطأ في حفظ الروابط. جرب تاني.');
@@ -1761,7 +1842,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await initSupabaseClient();
   console.log('Supabase client initialized, loading data...');
 
-  const savedSocial = await loadFromFirestore('settings', 'social');
+  const savedSocial = await loadSocialSettings();
   console.log('Loaded social settings:', savedSocial);
   if (savedSocial) {
     state.social = savedSocial;
