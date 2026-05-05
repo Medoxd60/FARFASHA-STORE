@@ -1732,6 +1732,11 @@ function initCategorySliderDrag() {
     categorySlider.scrollLeft = scrollLeft - walk;
   });
 
+  categorySlider.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    categorySlider.scrollLeft += event.deltaY;
+  }, { passive: false });
+
   categorySlider.addEventListener('touchstart', (event) => {
     isDragging = true;
     categorySlider.classList.add('dragging');
