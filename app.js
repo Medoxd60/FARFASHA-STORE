@@ -246,6 +246,108 @@ async function initSupabaseClient() {
   console.log('Using simple Supabase client fallback');
 }
 
+function initRealtimeSubscriptions() {
+  if (!window.supabase || !supabaseClient || typeof supabaseClient.from !== 'function') {
+    return;
+  }
+
+  const subscribeToTable = (table, handler) => {
+    try {
+      supabaseClient
+        .from(table)
+        .on('*', payload => handler(payload.eventType, payload.new, payload.old))
+        .subscribe();
+    } catch (error) {
+      console.warn(`Realtime subscription failed for ${table}:`, error);
+    }
+  };
+
+  subscribeToTable('products', handleRealtimeProducts);
+  subscribeToTable('categories', handleRealtimeCategories);
+  subscribeToTable('coupons', handleRealtimeCoupons);
+  subscribeToTable('orders', handleRealtimeOrders);
+  subscribeToTable('settings', handleRealtimeSettings);
+}
+
+function handleRealtimeProducts(eventType, newRow, oldRow) {
+  if (!newRow && !oldRow) return;
+  const item = mapProductFromDb(newRow || oldRow);
+  if (eventType === 'INSERT') {
+    state.products.unshift(item);
+  } else if (eventType === 'UPDATE') {
+    state.products = state.products.map(product => product.id === item.id ? item : product);
+  } else if (eventType === 'DELETE') {
+    state.products = state.products.filter(product => product.id !== item.id);
+  }
+  renderProducts();
+  if (window.location.hash.startsWith('#category/')) {
+    handleHashChange();
+  }
+}
+
+function handleRealtimeCategories(eventType, newRow, oldRow) {
+  if (!newRow && !oldRow) return;
+  const item = { id: (newRow || oldRow).id, name: (newRow || oldRow).name, img: (newRow || oldRow).img };
+  if (eventType === 'INSERT') {
+    state.categories.unshift(item);
+  } else if (eventType === 'UPDATE') {
+    state.categories = state.categories.map(category => category.id === item.id ? item : category);
+  } else if (eventType === 'DELETE') {
+    state.categories = state.categories.filter(category => category.id !== item.id);
+  }
+  renderCategories();
+  populateCategorySelect();
+}
+
+function handleRealtimeCoupons(eventType, newRow, oldRow) {
+  if (!newRow && !oldRow) return;
+  const item = mapCouponFromDb(newRow || oldRow);
+  if (eventType === 'INSERT') {
+    state.coupons.unshift(item);
+  } else if (eventType === 'UPDATE') {
+    state.coupons = state.coupons.map(coupon => coupon.id === item.id ? item : coupon);
+  } else if (eventType === 'DELETE') {
+    state.coupons = state.coupons.filter(coupon => coupon.id !== item.id);
+  }
+  renderCoupons(adminCouponSearch);
+}
+
+function handleRealtimeOrders(eventType, newRow, oldRow) {
+  if (!newRow && !oldRow) return;
+  const item = mapOrderFromDb(newRow || oldRow);
+  if (eventType === 'INSERT') {
+    state.orders.unshift(item);
+  } else if (eventType === 'UPDATE') {
+    state.orders = state.orders.map(order => order.id === item.id ? item : order);
+  } else if (eventType === 'DELETE') {
+    state.orders = state.orders.filter(order => order.id !== item.id);
+  }
+  renderOrders(adminOrderSearch);
+  orderCount.textContent = state.orders.length;
+  adminOrderBadge.textContent = state.orders.length;
+}
+
+function handleRealtimeSettings(eventType, newRow, oldRow) {
+  const row = newRow || oldRow;
+  if (!row || !row.id) return;
+
+  if (row.id === 'social') {
+    state.social = row.data || state.social;
+    updateSocialLinksDisplay();
+  }
+
+  if (row.id === 'shipping_rates') {
+    state.shippingRates = row.data?.rates || state.shippingRates;
+    populateGovernorateOptions();
+  }
+
+  if (row.id === 'review_images') {
+    state.reviewImages = row.data?.images || state.reviewImages;
+    renderReviewImages();
+    renderReviewImagesPreview();
+  }
+}
+
 function getStorageKey(collectionName, docId) {
   if (collectionName === 'settings') {
     return `farfasha_${docId}`;
@@ -606,9 +708,9 @@ function renderPickedProducts() {
   const shuffled = [...availableProducts].sort(() => Math.random() - 0.5);
   const picked = shuffled.slice(0, 4);
   pickedProductsGrid.innerHTML = picked.map(product => {
-    const cardFooter = getProductCardFooter(product, false);
+    const cardFooter = getProductCardFooter(product, true);
     return `
-    <article class="product-card">
+    <article class="product-card" onclick="window.location.hash='#product?id=${product.id}'">
       <img src="${product.img}" alt="${product.name}" loading="lazy">
       <div class="product-body">
         <h3>${product.name}</h3>
@@ -989,13 +1091,13 @@ function addReviewImage(event) {
 function renderDiscountedProducts() {
   const discounted = state.products.filter(product => product.discount && product.available !== false);
   discountedProductsGrid.innerHTML = discounted.length ? discounted.map(product => {
-    const cardFooter = getProductCardFooter(product, false);
+    const cardFooter = getProductCardFooter(product, true);
     return `
-    <article class="product-card">
+    <article class="product-card" onclick="window.location.hash='#product?id=${product.id}'">
       <img src="${product.img}" alt="${product.name}" loading="lazy">
       <div class="product-body">
         <h3>${product.name}</h3>
-        <p>${product.desc}</p>
+        <p class="product-category">${product.category}</p>
         <div class="product-meta">
           ${cardFooter}
         </div>
@@ -1721,6 +1823,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
   updateSocialLinksDisplay();
+  initRealtimeSubscriptions();
   if (!window.location.hash) window.location.hash = '#home';
   handleHashChange();
 });
