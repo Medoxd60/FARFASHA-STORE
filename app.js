@@ -506,7 +506,7 @@ async function saveToFirestore(collectionName, docId, data) {
       if (error.message?.includes('HTTP error! status: 400') || error.message?.includes('column')) {
         return false;
       }
-      console.error('Error saving settings to Supabase:', error);
+      console.warn('Error saving settings to Supabase:', error.message);
       return false;
     }
   };
@@ -520,7 +520,7 @@ async function saveToFirestore(collectionName, docId, data) {
     return true;
   }
 
-  console.error('Error saving settings to Supabase: failed to save using both data and value fields');
+  console.warn('Error saving settings to Supabase: failed to save using both data and value fields');
   return false;
 }
 
@@ -537,7 +537,9 @@ async function loadFromFirestore(collectionName, docId) {
       .eq('id', docId)
       .single();
     if (error) {
-      if (error.code === 'PGRST116' || error.details?.includes('No rows')) {
+      // If table doesn't exist or no rows, just return null without error
+      if (error.code === 'PGRST116' || error.details?.includes('No rows') || error.message?.includes('HTTP error! status: 400')) {
+        console.warn(`Settings table not available or misconfigured for ${docId}, continuing without`);
         return null;
       }
       console.error('Error loading settings from Supabase:', error);
@@ -554,7 +556,8 @@ async function loadFromFirestore(collectionName, docId) {
     }
     return data;
   } catch (error) {
-    console.error('Error loading settings from Supabase:', error);
+    // If any exception, just return null
+    console.warn('Exception loading settings, continuing without:', error.message);
     return null;
   }
 }
@@ -1694,7 +1697,7 @@ async function updateSocialLinks(event) {
   try {
     const saved = await saveToFirestore('settings', 'social', state.social);
     if (!saved) {
-      throw new Error('فشل حفظ إعدادات التواصل');
+      console.warn('فشل حفظ إعدادات التواصل، لكن سيتم تحديث العرض محلياً');
     }
     updateSocialLinksDisplay();
     fillSocialForm(); // Re-fill the form with saved values instead of resetting
