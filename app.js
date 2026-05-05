@@ -507,7 +507,7 @@ async function saveToFirestore(collectionName, docId, data) {
       payload[fieldName] = data;
       const { error } = await supabaseClient
         .from('settings')
-        .upsert(payload);
+        .upsert(payload, { onConflict: 'key' }); // Added onConflict to specify the conflict resolution column
       if (error) throw error;
       settingsField = fieldName;
       return true;
