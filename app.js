@@ -528,10 +528,11 @@ async function loadCollectionFromFirestore(collectionName) {
   }
   try {
     console.log(`Attempting to load ${collectionName} from Supabase...`);
+    const isDescending = collectionName === 'products'; // Newest products first
     const { data, error } = await supabaseClient
       .from(collectionName)
       .select('*')
-      .order('id', { ascending: true });
+      .order('id', { ascending: !isDescending });
     if (error) {
       console.error(`Error loading ${collectionName} from Supabase:`, error);
       return [];
