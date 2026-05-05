@@ -331,7 +331,7 @@ function handleRealtimeOrders(eventType, newRow, oldRow) {
 
 function handleRealtimeSettings(eventType, newRow, oldRow) {
   const row = newRow || oldRow;
-  if (!row || !row.id) return;
+  if (!row || !row.key) return; // Changed from id to key
 
   let settingsData;
   if (row.data !== undefined) {
@@ -342,17 +342,17 @@ function handleRealtimeSettings(eventType, newRow, oldRow) {
     return; // No valid settings data
   }
 
-  if (row.id === 'social') {
+  if (row.key === 'social') { // Changed from id to key
     state.social = settingsData || state.social;
     updateSocialLinksDisplay();
   }
 
-  if (row.id === 'shipping_rates') {
+  if (row.key === 'shipping_rates') { // Changed from id to key
     state.shippingRates = settingsData?.rates || state.shippingRates;
     populateGovernorateOptions();
   }
 
-  if (row.id === 'review_images') {
+  if (row.key === 'review_images') { // Changed from id to key
     state.reviewImages = settingsData?.images || state.reviewImages;
     renderReviewImages();
     renderReviewImagesPreview();
@@ -503,7 +503,7 @@ async function saveToFirestore(collectionName, docId, data) {
 
   const trySave = async (fieldName) => {
     try {
-      const payload = { id: docId };
+      const payload = { key: docId }; // Changed from id to key
       payload[fieldName] = data;
       const { error } = await supabaseClient
         .from('settings')
@@ -543,7 +543,7 @@ async function loadFromFirestore(collectionName, docId) {
     const { data, error } = await supabaseClient
       .from('settings')
       .select('*')
-      .eq('id', docId)
+      .eq('key', docId) // Changed from id to key
       .single();
     if (error) {
       // If table doesn't exist or no rows, just return null without error
