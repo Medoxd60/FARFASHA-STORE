@@ -724,14 +724,16 @@ function renderPickedProducts() {
 }
 
 function renderCategories() {
-  categorySlider.innerHTML = state.categories.length ? state.categories.map(category => `
-    <article class="category-card" onclick="window.location.hash='#category/${encodeURIComponent(category.name)}'">
-      <div class="category-thumb">
-        <img src="${category.img}" alt="${category.name}" loading="lazy">
-      </div>
-      <h4>${category.name}</h4>
-    </article>
-  `).join('') : '<p class="card-detail" style="grid-column: 1 / -1; text-align:center;">لم تتم إضافة فئات بعد.</p>';
+  categorySlider.innerHTML = state.categories.length ? `
+    <div class="categories-gallery">
+      ${state.categories.map(category => `
+        <div class="gallery-thumb category-thumb" onclick="window.location.hash='#category/${encodeURIComponent(category.name)}'">
+          <img src="${category.img}" alt="${category.name}" loading="lazy">
+          <h4>${category.name}</h4>
+        </div>
+      `).join('')}
+    </div>
+  ` : '<p class="card-detail" style="grid-column: 1 / -1; text-align:center;">لم تتم إضافة فئات بعد.</p>';
 }
 
 function renderCategoryPage(categoryName) {
@@ -1700,63 +1702,6 @@ function fillSocialForm() {
   document.getElementById('whatsapp-url').value = state.social.whatsapp !== '#' ? state.social.whatsapp : '';
   document.getElementById('facebook-url').value = state.social.facebook !== '#' ? state.social.facebook : '';
 }
-
-function initCategorySliderDrag() {
-  if (!categorySlider) return;
-  let isDragging = false;
-  let startX;
-  let scrollLeft;
-
-  categorySlider.addEventListener('mousedown', (event) => {
-    isDragging = true;
-    categorySlider.classList.add('dragging');
-    startX = event.pageX - categorySlider.offsetLeft;
-    scrollLeft = categorySlider.scrollLeft;
-  });
-
-  categorySlider.addEventListener('mouseleave', () => {
-    isDragging = false;
-    categorySlider.classList.remove('dragging');
-  });
-
-  categorySlider.addEventListener('mouseup', () => {
-    isDragging = false;
-    categorySlider.classList.remove('dragging');
-  });
-
-  categorySlider.addEventListener('mousemove', (event) => {
-    if (!isDragging) return;
-    event.preventDefault();
-    const x = event.pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 3.0;
-    categorySlider.scrollLeft = scrollLeft - walk;
-  });
-
-  categorySlider.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    categorySlider.scrollLeft += event.deltaY;
-  }, { passive: false });
-
-  categorySlider.addEventListener('touchstart', (event) => {
-    isDragging = true;
-    categorySlider.classList.add('dragging');
-    startX = event.touches[0].pageX - categorySlider.offsetLeft;
-    scrollLeft = categorySlider.scrollLeft;
-  }, { passive: true });
-
-  categorySlider.addEventListener('touchmove', (event) => {
-    if (!isDragging) return;
-    const x = event.touches[0].pageX - categorySlider.offsetLeft;
-    const walk = (x - startX) * 5.0;
-    categorySlider.scrollLeft = scrollLeft - walk;
-  }, { passive: true });
-
-  categorySlider.addEventListener('touchend', () => {
-    isDragging = false;
-    categorySlider.classList.remove('dragging');
-  });
-}
-
 window.addEventListener('hashchange', handleHashChange);
 window.addEventListener('DOMContentLoaded', async () => {
   await initSupabaseClient();
@@ -1823,7 +1768,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderReviewImages();
   renderReviewImagesPreview();
   renderOrders();
-  initCategorySliderDrag();
   populateCategorySelect();
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
