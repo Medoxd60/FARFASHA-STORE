@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FARFASHA - المتجر العصري</title>
   <link rel="stylesheet" href="styles.css">
-  modyroaa8693
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <header>
     <div class="navbar">
-      <button class="mobile-menu-toggle" type="button" aria-label="فتح القائمة" aria-expanded="false">
-        <span></span>
-      </button>
       <a class="brand" href="#home"><span>FASHA</span>FAR</a>
       <nav class="menu" aria-label="القائمة الرئيسية">
         <a href="#home" data-link="home">الرئيسية</a>
@@ -285,13 +284,13 @@
           </div>
         </div>
         <div class="admin-tabs">
-          <button class="tab-btn active" data-tab="products" onclick="switchAdminTab(event)">إدارة المنتجات</button>
-          <button class="tab-btn" data-tab="orders" onclick="switchAdminTab(event)">طلبات العملاء <span id="admin-order-badge" style="margin-left:8px; color: var(--accent)">0</span></button>
-          <button class="tab-btn" data-tab="categories" onclick="switchAdminTab(event)">فئات المنتجات</button>
-          <button class="tab-btn" data-tab="social" onclick="switchAdminTab(event)">تواصل معنا</button>
-          <button class="tab-btn" data-tab="reviews" onclick="switchAdminTab(event)">آراء العملاء</button>
-          <button class="tab-btn" data-tab="shipping" onclick="switchAdminTab(event)">الشحن</button>
-          <button class="tab-btn" data-tab="coupons" onclick="switchAdminTab(event)">الكوبونات</button>
+          <button type="button" class="tab-btn active" data-tab="products" onclick="switchAdminTab(event)">إدارة المنتجات</button>
+          <button type="button" class="tab-btn" data-tab="orders" onclick="switchAdminTab(event)">طلبات العملاء <span id="admin-order-badge" style="margin-left:8px; color: var(--accent)">0</span></button>
+          <button type="button" class="tab-btn" data-tab="categories" onclick="switchAdminTab(event)">فئات المنتجات</button>
+          <button type="button" class="tab-btn" data-tab="social" onclick="switchAdminTab(event)">تواصل معنا</button>
+          <button type="button" class="tab-btn" data-tab="reviews" onclick="switchAdminTab(event)">آراء العملاء</button>
+          <button type="button" class="tab-btn" data-tab="shipping" onclick="switchAdminTab(event)">الشحن</button>
+          <button type="button" class="tab-btn" data-tab="coupons" onclick="switchAdminTab(event)">الكوبونات</button>
         </div>
         <div class="admin-tab-panel" data-tab="products">
           <article class="form-card">
@@ -375,6 +374,32 @@
             <h3>آراء العملاء</h3>
             <form id="review-images-form" onsubmit="addReviewImage(event)">
               <label>اختر صورة من جهازك<input id="review-image-input" type="file" accept="image/*" required></label>
+              <div class="review-meta-grid">
+                <label class="review-input-label">اسم العميل<input id="reviewer-name" type="text" placeholder="اكتب اسم العميل"></label>
+                <div class="review-gender-field">
+                  <span>النوع</span>
+                  <div class="gender-options">
+                    <label class="gender-option">
+                      <input type="radio" name="reviewer-gender" value="male" checked>
+                      <span class="gender-circle">
+                        <svg viewBox="0 0 24 24" class="gender-icon" aria-hidden="true">
+                          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z"/>
+                        </svg>
+                      </span>
+                      <span>ذكر</span>
+                    </label>
+                    <label class="gender-option">
+                      <input type="radio" name="reviewer-gender" value="female">
+                      <span class="gender-circle">
+                        <svg viewBox="0 0 24 24" class="gender-icon" aria-hidden="true">
+                          <path d="M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm1 11h-2v3h-2v2h2v2h2v-2h2v-2h-2v-3z"/>
+                        </svg>
+                      </span>
+                      <span>أنثى</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
               <button class="btn" type="submit">إضافة صورة</button>
             </form>
             <div id="review-images-preview" class="cards-grid" style="margin-top:18px;"></div>
@@ -434,9 +459,91 @@
         </div>
       </div>
     </section>
+
+    <section id="section-auth" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2 id="auth-title">تسجيل الدخول</h2>
+          <p id="auth-subtitle">ادخل بياناتك للوصول إلى حسابك</p>
+        </div>
+      </div>
+      <div class="auth-container">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth="login" onclick="switchAuthTab('login')">تسجيل الدخول</button>
+          <button class="auth-tab" data-auth="register" onclick="switchAuthTab('register')">إنشاء حساب</button>
+        </div>
+        <div class="auth-panel active" data-auth="login">
+          <form class="form-card" onsubmit="loginUser(event)">
+            <label>البريد الإلكتروني<input id="login-email" type="email" placeholder="example@email.com" required></label>
+            <label>كلمة المرور<input id="login-password" type="password" placeholder="كلمة المرور" required></label>
+            <button class="btn" type="submit">تسجيل الدخول</button>
+          </form>
+        </div>
+        <div class="auth-panel" data-auth="register">
+          <form class="form-card" onsubmit="registerUser(event)">
+            <label>الاسم الكامل<input id="register-name" type="text" placeholder="اسمك الكامل" required></label>
+            <label>البريد الإلكتروني<input id="register-email" type="email" placeholder="example@email.com" required></label>
+            <label>رقم الهاتف<input id="register-phone" type="tel" placeholder="010XXXXXXXX" required></label>
+            <label>كلمة المرور<input id="register-password" type="password" placeholder="كلمة مرور قوية" required></label>
+            <label>تأكيد كلمة المرور<input id="register-confirm-password" type="password" placeholder="أعد كتابة كلمة المرور" required></label>
+            <button class="btn" type="submit">إنشاء الحساب</button>
+          </form>
+        </div>
+        <div id="auth-message" class="alert hidden"></div>
+      </div>
+    </section>
   </main>
 
+  <nav class="bottom-nav" aria-label="قائمة التنقل السفلية">
+    <a href="#home" data-link="home">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </svg>
+    </a>
+    <a href="#products" data-link="products">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20 7h-4V4c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v3H0v2h2v13c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM8 4h8v3H8V4zm12 18H4V9h16v13z"/>
+      </svg>
+    </a>
+    <a href="#cart" data-link="cart">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
+      </svg>
+      <span class="cart-count" id="bottom-cart-count">0</span>
+    </a>
+    <a href="#checkout" data-link="checkout">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+      </svg>
+    </a>
+    <a href="register.html" data-link="auth" aria-label="حسابي">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+      </svg>
+    </a>
+  </nav>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDCCdsQVz4OFS2XVRfuh-6c8xkamN_7uTc",
+      authDomain: "farfasha-store.firebaseapp.com",
+      projectId: "farfasha-store",
+      storageBucket: "farfasha-store.firebasestorage.app",
+      messagingSenderId: "607506266978",
+      appId: "1:607506266978:web:46217b48384f4f661dca3b",
+      measurementId: "G-1MN8P3734F"
+    };
+    firebase.initializeApp(firebaseConfig);
+    window.firebaseApp = firebase.app();
+    window.firebaseAuth = firebase.auth();
+    window.firebaseDB = firebase.firestore();
+    window.firebaseStorage = firebase.storage();
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
