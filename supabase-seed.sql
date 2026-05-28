@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at timestamptz default now()
 );
 
+CREATE TABLE IF NOT EXISTS profiles (
+  id bigserial primary key,
+  user_id uuid unique not null,
+  full_name text,
+  email text unique not null,
+  phone text,
+  created_at timestamptz default now()
+);
+
 -- Categories
 INSERT INTO categories (id, name, img)
 VALUES
