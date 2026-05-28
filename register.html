@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>تسجيل جديد - FARFASHA</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="navbar">
+      <a class="brand" href="index.html"><span>FASHA</span>FAR</a>
+    </div>
+  </header>
+  <main style="padding:80px 24px; max-width:760px; margin:0 auto;">
+    <section class="section-page">
+      <div class="section-title">
+        <div>
+          <h2>إنشاء حساب جديد</h2>
+          <p>سجل حسابك لتحصل على تجربة شخصية ومتابعة الطلبات.</p>
+        </div>
+      </div>
+
+      <article class="form-card" style="margin-top:18px;">
+        <div class="auth-tabs" style="margin-bottom:12px;">
+          <button id="tab-login" class="auth-tab" type="button">تسجيل الدخول</button>
+          <button id="tab-register" class="auth-tab active" type="button">إنشاء حساب</button>
+        </div>
+
+        <div id="panel-login" class="auth-panel">
+          <form id="login-form">
+            <label>البريد الإلكتروني<input id="login-email" type="email" placeholder="example@email.com" required></label>
+            <label>كلمة المرور<input id="login-password" type="password" placeholder="كلمة المرور" required></label>
+            <div style="display:flex; gap:12px; margin-top:12px;">
+              <button class="btn" type="submit">دخول</button>
+              <a class="secondary-btn" href="index.html">العودة</a>
+            </div>
+            <p id="login-msg" class="alert" style="margin-top:12px; display:none;"></p>
+          </form>
+        </div>
+
+        <div id="panel-register" class="auth-panel active">
+          <form id="register-form">
+            <label>الاسم الكامل<input id="reg-name" type="text" placeholder="اسمك الكامل" required></label>
+            <label>رقم التليفون<input id="reg-phone" type="tel" placeholder="010XXXXXXXX" required></label>
+            <label>البريد الإلكتروني<input id="reg-email" type="email" placeholder="example@email.com" required></label>
+            <label>كلمة المرور<input id="reg-password" type="password" placeholder="كلمة مرور قوية" required></label>
+            <label>تأكيد كلمة المرور<input id="reg-confirm" type="password" placeholder="أعد كتابة كلمة المرور" required></label>
+            <div style="display:flex; gap:12px; margin-top:12px;">
+              <button class="btn" type="submit">إنشاء حساب</button>
+              <a class="secondary-btn" href="index.html">العودة</a>
+            </div>
+            <p id="reg-msg" class="alert" style="margin-top:12px; display:none;"></p>
+          </form>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script>
+    // Replace these values with your Firebase project config if different
+    const firebaseConfig = {
+      apiKey: "AIzaSyDCCdsQVz4OFS2XVRfuh-6c8xkamN_7uTc",
+      authDomain: "farfasha-store.firebaseapp.com",
+      projectId: "farfasha-store",
+      storageBucket: "farfasha-store.firebasestorage.app",
+      messagingSenderId: "607506266978",
+      appId: "1:607506266978:web:46217b48384f4f661dca3b",
+      measurementId: "G-1MN8P3734F"
+    };
+    firebase.initializeApp(firebaseConfig);
+    window.firebaseApp = firebase.app();
+    window.firebaseAuth = firebase.auth();
+    window.firebaseDB = firebase.firestore();
+    window.firebaseStorage = firebase.storage();
+
+    (function() {
+      const tabLogin = document.getElementById('tab-login');
+      const tabRegister = document.getElementById('tab-register');
+      const panelLogin = document.getElementById('panel-login');
+      const panelRegister = document.getElementById('panel-register');
+      function switchTab(to) {
+        if (to === 'login') {
+          tabLogin.classList.add('active'); tabRegister.classList.remove('active');
+          panelLogin.classList.add('active'); panelRegister.classList.remove('active');
+        } else {
+          tabRegister.classList.add('active'); tabLogin.classList.remove('active');
+          panelRegister.classList.add('active'); panelLogin.classList.remove('active');
+        }
+      }
+      tabLogin.addEventListener('click', () => switchTab('login'));
+      tabRegister.addEventListener('click', () => switchTab('register'));
+      if (location.hash === '#login' || location.search.includes('tab=login')) switchTab('login');
+
+      async function initAuthPage() {
+        const registerForm = document.getElementById('register-form');
+        const regMsg = document.getElementById('reg-msg');
+        registerForm.addEventListener('submit', async (e) => {
+          e.preventDefault(); regMsg.style.display = 'none';
+          const name = document.getElementById('reg-name').value.trim();
+          const phone = document.getElementById('reg-phone').value.trim();
+          const email = document.getElementById('reg-email').value.trim();
+          const password = document.getElementById('reg-password').value;
+          const confirm = document.getElementById('reg-confirm').value;
+          if (!name || !phone || !email || !password) return showRegError('من فضلك أكمل جميع الحقول.');
+          if (password !== confirm) return showRegError('كلمتا المرور غير متطابقتين.');
+          try {
+            const userCred = await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
+            const uid = userCred.user.uid;
+            try {
+              await window.firebaseDB.collection('profiles').doc(uid).set({ full_name: name, phone, email });
+            } catch (e) { /* non-fatal */ }
+            regMsg.style.display = 'block'; regMsg.style.color = '#0b6623'; regMsg.textContent = '✅ تم إنشاء الحساب. جاري التحويل.';
+            setTimeout(() => window.location.href = 'index.html', 1400);
+          } catch (err) { showRegError(err.message || 'خطأ غير متوقع.'); }
+        });
+        function showRegError(text){ regMsg.style.display='block'; regMsg.style.color='#ff6b6b'; regMsg.textContent=text; }
+
+        const loginForm = document.getElementById('login-form');
+        const loginMsg = document.getElementById('login-msg');
+        loginForm.addEventListener('submit', async (e) => {
+          e.preventDefault(); loginMsg.style.display='none';
+          const email = document.getElementById('login-email').value.trim();
+          const password = document.getElementById('login-password').value;
+          if (!email || !password) return showLoginError('من فضلك املأ البريد و كلمة المرور.');
+          try {
+            await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+            loginMsg.style.display='block'; loginMsg.style.color='#0b6623'; loginMsg.textContent='✅ تم تسجيل الدخول. جاري التوجيه...';
+            setTimeout(()=> window.location.href = 'index.html', 900);
+          } catch (err) { showLoginError(err.message || 'فشل تسجيل الدخول.'); }
+        });
+        function showLoginError(text){ loginMsg.style.display='block'; loginMsg.style.color='#ff6b6b'; loginMsg.textContent=text; }
+      }
+
+      initAuthPage();
+    })();
+  </script>
+</body>
+</html>
