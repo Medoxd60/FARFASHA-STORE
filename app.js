@@ -36,6 +36,7 @@ const pickedProductsGrid = document.getElementById('picked-products-grid');
 const categorySlider = document.getElementById('category-slider');
 const cartTableBody = document.getElementById('cart-items');
 const cartCount = document.getElementById('cart-count');
+const bottomCartCount = document.getElementById('bottom-cart-count');
 const cartTotal = document.getElementById('cart-total');
 const orderSummary = document.getElementById('checkout-summary');
 const confirmMessage = document.getElementById('confirm-message');
@@ -122,6 +123,10 @@ let galleryImagesData = [];
 const SUPABASE_URL = 'https://spvrkohlqflsyjiexcvo.supabase.co';
 const SUPABASE_PUBLIC_KEY = 'sb_publishable_hFZTx_2ZRGoWv93qFMnuRw_G_WNueVe';
 let supabaseClient = null;
+let firebaseApp = null;
+let firebaseDb = null;
+let firebaseAuth = null;
+let firebaseStorage = null;
 let settingsField = 'value'; // Changed default to 'value' as it's more common in Supabase settings tables
 
 class SimpleSupabaseClient {
@@ -234,6 +239,37 @@ class SimpleSupabaseClient {
         };
       }
     };
+  }
+}
+
+async function initFirebaseClient() {
+  if (window.firebaseDB) {
+    firebaseApp = window.firebaseApp || window.firebase.app();
+    firebaseDb = window.firebaseDB;
+    firebaseAuth = window.firebaseAuth;
+    firebaseStorage = window.firebaseStorage;
+    console.log('Firebase client initialized');
+
+    if (window.firebase && window.firebase.firestore && typeof window.firebase.firestore === 'function') {
+      try {
+        await window.firebase.firestore().enablePersistence({ synchronizeTabs: true });
+        console.log('Firebase offline persistence enabled');
+      } catch (error) {
+        console.warn('Firebase persistence not enabled:', error.message);
+      }
+    }
+
+    if (firebaseAuth && !firebaseAuth.currentUser) {
+      try {
+        await firebaseAuth.signInAnonymously();
+        console.log('Firebase anonymous auth succeeded');
+      } catch (error) {
+        console.warn('Firebase anonymous auth failed:', error.message);
+      }
+    }
+    console.log('Firebase current user:', firebaseAuth ? firebaseAuth.currentUser : 'none');
+  } else {
+    console.warn('Firebase client not available: window.firebaseDB missing');
   }
 }
 
@@ -497,6 +533,16 @@ function mapCollectionToDb(collectionName, items) {
 
 async function saveToFirestore(collectionName, docId, data) {
   if (collectionName !== 'settings') return false;
+
+  if (firebaseDb) {
+    try {
+      await firebaseDb.collection(collectionName).doc(String(docId)).set(data, { merge: true });
+      return true;
+    } catch (error) {
+      console.warn('Firebase saveToFirestore failed:', error.message);
+    }
+  }
+
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for saveToFirestore');
     return false;
@@ -536,6 +582,18 @@ async function saveToFirestore(collectionName, docId, data) {
 
 async function loadFromFirestore(collectionName, docId) {
   if (collectionName !== 'settings') return null;
+
+  if (firebaseDb) {
+    try {
+      const docRef = firebaseDb.collection(collectionName).doc(String(docId));
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) return null;
+      return snapshot.data();
+    } catch (error) {
+      console.warn('Firebase loadFromFirestore failed:', error.message);
+    }
+  }
+
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for loadFromFirestore');
     return null;
@@ -596,6 +654,17 @@ async function directSupabaseRequest(path, method = 'GET', body = null, extraHea
 }
 
 async function loadSocialSettingsRow() {
+  if (firebaseDb) {
+    try {
+      const snapshot = await firebaseDb.collection('settings').doc('social').get();
+      if (snapshot.exists) {
+        return { key: 'social', ...snapshot.data() };
+      }
+    } catch (error) {
+      console.warn('Firebase loadSocialSettingsRow failed:', error.message);
+    }
+  }
+
   if (!supabaseClient) return null;
 
   try {
@@ -615,10 +684,20 @@ async function loadSocialSettings() {
   if (!row) return null;
   if (row.data !== undefined) return row.data;
   if (row.value !== undefined) return row.value;
-  return null;
+  const { key, id, ...rest } = row;
+  return rest;
 }
 
 async function saveSocialSettings(social) {
+  if (firebaseDb) {
+    try {
+      await firebaseDb.collection('settings').doc('social').set({ value: social }, { merge: true });
+      return true;
+    } catch (error) {
+      console.warn('Firebase saveSocialSettings failed:', error.message);
+    }
+  }
+
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for saveSocialSettings');
     return false;
@@ -643,6 +722,18 @@ async function saveSocialSettings(social) {
 }
 
 async function loadCollectionFromFirestore(collectionName) {
+  if (firebaseDb) {
+    try {
+      console.log(`Attempting to load ${collectionName} from Firebase...`);
+      const snapshot = await firebaseDb.collection(collectionName).get();
+      const rows = [];
+      snapshot.forEach(doc => rows.push(doc.data()));
+      return normalizeCollectionFromDb(collectionName, rows);
+    } catch (error) {
+      console.warn('Firebase loadCollectionFromFirestore failed:', error.message);
+    }
+  }
+
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for loadCollectionFromFirestore');
     return [];
@@ -668,11 +759,27 @@ async function loadCollectionFromFirestore(collectionName) {
 
 async function saveCollectionToFirestore(collectionName, items) {
   if (!Array.isArray(items) || items.length === 0) return;
+  if (firebaseDb) {
+    try {
+      const payload = mapCollectionToDb(collectionName, items);
+      const batch = firebaseDb.batch();
+      payload.forEach(item => {
+        const docRef = firebaseDb.collection(collectionName).doc(String(item.id));
+        batch.set(docRef, item, { merge: true });
+      });
+      await batch.commit();
+      console.log(`Successfully saved ${collectionName} to Firebase`);
+      return;
+    } catch (error) {
+      console.warn('Firebase saveCollectionToFirestore failed:', error.message);
+    }
+  }
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for saveCollectionToFirestore');
     return;
   }
   try {
+    console.log(`Falling back to Supabase for ${collectionName}`);
     const payload = mapCollectionToDb(collectionName, items);
     const { data, error } = await supabaseClient
       .from(collectionName)
@@ -1248,8 +1355,10 @@ function renderCart() {
     </tr>
   `).join('') : '<tr><td colspan="6" style="padding: 24px; color: var(--text-muted); text-align:center">السلة فاضية دلوقتي. ضيف منتجات أكتر.</td></tr>';
   const total = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const quantityCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
   cartTotal.textContent = formatPrice(total);
-  cartCount.textContent = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+  if (cartCount) cartCount.textContent = quantityCount;
+  if (bottomCartCount) bottomCartCount.textContent = quantityCount;
 }
 
 function updateCartQuantity(productId, delta) {
@@ -1828,15 +1937,17 @@ function fillSocialForm() {
   document.getElementById('whatsapp-url').value = state.social.whatsapp !== '#' ? state.social.whatsapp : '';
   document.getElementById('facebook-url').value = state.social.facebook !== '#' ? state.social.facebook : '';
 }
-window.addEventListener('hashchange', handleHashChange);
-window.addEventListener('DOMContentLoaded', async () => {
+
+async function loadRemoteData() {
+  await initFirebaseClient();
   await initSupabaseClient();
-  console.log('Supabase client initialized, loading data...');
+  console.log('Clients initialized, loading remote data...');
 
   const savedSocial = await loadSocialSettings();
   console.log('Loaded social settings:', savedSocial);
   if (savedSocial) {
     state.social = savedSocial;
+    updateSocialLinksDisplay();
   }
 
   const savedProducts = await loadCollectionFromFirestore('products');
@@ -1848,6 +1959,15 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!product.gallery) product.gallery = [];
       if (product.available === undefined) product.available = true;
     });
+    renderProducts();
+  }
+
+  const savedCategories = await loadCollectionFromFirestore('categories');
+  console.log('Loaded categories from Supabase:', savedCategories.length, 'categories');
+  if (savedCategories.length > 0) {
+    state.categories = savedCategories;
+    renderCategories();
+    populateCategorySelect();
   }
 
   const savedOrders = await loadCollectionFromFirestore('orders');
@@ -1856,24 +1976,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     state.orders = savedOrders;
     normalizeOrderNumbers();
     saveCollectionToFirestore('orders', state.orders);
+    renderOrders();
+    orderCount.textContent = state.orders.length;
+    adminOrderBadge.textContent = state.orders.length;
   }
 
   const savedCart = await loadFromFirestore('settings', 'cart');
   console.log('Loaded cart from Supabase:', savedCart);
   if (savedCart) {
     state.cart = savedCart.items || [];
+    renderCart();
   }
 
   const savedReviewImages = await loadFromFirestore('settings', 'review_images');
   console.log('Loaded review images from Supabase:', savedReviewImages);
   if (savedReviewImages) {
     state.reviewImages = savedReviewImages.images || [];
-  }
-
-  const savedCategories = await loadCollectionFromFirestore('categories');
-  console.log('Loaded categories from Supabase:', savedCategories.length, 'categories');
-  if (savedCategories.length > 0) {
-    state.categories = savedCategories;
+    renderReviewImages();
+    renderReviewImagesPreview();
   }
 
   const savedShippingRates = await loadFromFirestore('settings', 'shipping_rates');
@@ -1888,19 +2008,26 @@ window.addEventListener('DOMContentLoaded', async () => {
     state.coupons = savedCoupons;
   }
 
-  console.log('Data loading complete, rendering products...');
+  initRealtimeSubscriptions();
+  console.log('Remote data loading finished');
+}
+
+window.addEventListener('hashchange', handleHashChange);
+window.addEventListener('DOMContentLoaded', () => {
   renderProducts();
   renderCart();
   renderReviewImages();
   renderReviewImagesPreview();
   renderOrders();
+  renderCategories();
   populateCategorySelect();
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
   updateSocialLinksDisplay();
-  initRealtimeSubscriptions();
   if (!window.location.hash) window.location.hash = '#home';
   handleHashChange();
+
+  loadRemoteData();
 });
 
 function renderShippingRates() {
@@ -1960,3 +2087,93 @@ window.buyNow = buyNow;
 window.renderShippingRates = renderShippingRates;
 window.addNewGovernorate = addNewGovernorate;
 window.saveShippingRates = saveShippingRates;
+window.switchAuthTab = switchAuthTab;
+window.loginUser = loginUser;
+window.registerUser = registerUser;
+window.logoutUser = logoutUser;
+
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(button => {
+    button.classList.toggle('active', button.dataset.auth === tab);
+  });
+  document.querySelectorAll('.auth-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.auth === tab);
+  });
+}
+
+function loginUser(event) {
+  event.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value.trim();
+  const message = document.getElementById('auth-message');
+  if (!email || !password) {
+    if (message) {
+      message.textContent = 'من فضلك املأ جميع الحقول.';
+      message.classList.remove('hidden');
+    }
+    return;
+  }
+  if (message) {
+    message.textContent = 'تم تسجيل الدخول بشكل تجريبي، لكن هذه الميزة غير مفعلة حالياً.';
+    message.classList.remove('hidden');
+  }
+}
+
+function registerUser(event) {
+  event.preventDefault();
+  const name = document.getElementById('register-name').value.trim();
+  const email = document.getElementById('register-email').value.trim();
+  const phone = document.getElementById('register-phone').value.trim();
+  const password = document.getElementById('register-password').value.trim();
+  const confirmPassword = document.getElementById('register-confirm-password').value.trim();
+  const message = document.getElementById('auth-message');
+  if (!name || !email || !phone || !password || !confirmPassword) {
+    if (message) {
+      message.textContent = 'من فضلك املأ جميع الحقول.';
+      message.classList.remove('hidden');
+    }
+    return;
+  }
+  if (password !== confirmPassword) {
+    if (message) {
+      message.textContent = 'كلمتا المرور غير متطابقتين.';
+      message.classList.remove('hidden');
+    }
+    return;
+  }
+  if (!supabaseClient) {
+    if (message) {
+      message.textContent = 'حدث خطأ في الاتصال بقاعدة البيانات. حاول لاحقًا.';
+      message.classList.remove('hidden');
+    }
+    return;
+  }
+
+  (async () => {
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({ email, password }, { data: { full_name: name, phone } });
+      if (error) {
+        if (message) { message.textContent = error.message || 'خطأ أثناء التسجيل.'; message.classList.remove('hidden'); }
+        return;
+      }
+      // try to upsert profile
+      try {
+        if (data && data.user && data.user.id) {
+          await supabaseClient.from('profiles').upsert({ id: data.user.id, full_name: name, phone }).catch(()=>{});
+        }
+      } catch(e) { /* ignore */ }
+
+      if (message) {
+        message.textContent = '✅ تم إنشاء الحساب. تحقق بريدك للتأكيد إن لزم.';
+        message.classList.remove('hidden');
+      }
+      setTimeout(() => { window.location.hash = '#home'; }, 1800);
+    } catch (e) {
+      if (message) { message.textContent = e.message || 'خطأ غير متوقع.'; message.classList.remove('hidden'); }
+    }
+  })();
+}
+
+function logoutUser() {
+  window.location.hash = '#home';
+}
