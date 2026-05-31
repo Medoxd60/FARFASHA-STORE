@@ -375,26 +375,113 @@ async function testSupabaseConnection() {
 }
 
 function initRealtimeSubscriptions() {
-  if (!window.supabase || !supabaseClient || typeof supabaseClient.from !== 'function') {
-    return;
+  if (window.supabase && supabaseClient && typeof supabaseClient.from === 'function') {
+    const subscribeToTable = (table, handler) => {
+      try {
+        const listener = supabaseClient.from(table);
+        if (listener && typeof listener.on === 'function') {
+          listener
+            .on('*', payload => handler(payload.eventType || payload.event, payload.new || payload.record, payload.old))
+            .subscribe();
+          return;
+        }
+      } catch (error) {
+        console.warn(`Supabase realtime first path failed for ${table}:`, error);
+      }
+
+      try {
+        const channel = supabaseClient.channel(`realtime-${table}`);
+        channel.on('postgres_changes', { event: '*', schema: 'public', table }, payload => {
+          handler(payload.eventType || payload.event, payload.new || payload.record, payload.old);
+        }).subscribe();
+      } catch (error) {
+        console.warn(`Supabase realtime fallback failed for ${table}:`, error);
+      }
+    };
+
+    subscribeToTable('products', handleRealtimeProducts);
+    subscribeToTable('categories', handleRealtimeCategories);
+    subscribeToTable('coupons', handleRealtimeCoupons);
+    subscribeToTable('orders', handleRealtimeOrders);
+    subscribeToTable('settings', handleRealtimeSettings);
   }
 
-  const subscribeToTable = (table, handler) => {
+  if (firebaseEnabled && firebaseDb) {
+    initFirebaseRealtimeSubscriptions();
+  }
+}
+
+function initFirebaseRealtimeSubscriptions() {
+  if (!firebaseEnabled || !firebaseDb) return;
+
+  const listenCollection = (collectionName, callback) => {
     try {
-      supabaseClient
-        .from(table)
-        .on('*', payload => handler(payload.eventType, payload.new, payload.old))
-        .subscribe();
+      firebaseDb.collection(collectionName).onSnapshot(snapshot => {
+        const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(rows);
+      }, error => {
+        console.warn(`Firebase realtime snapshot failed for ${collectionName}:`, error.message || error);
+      });
     } catch (error) {
-      console.warn(`Realtime subscription failed for ${table}:`, error);
+      console.warn(`Firebase realtime listen failed for ${collectionName}:`, error.message || error);
     }
   };
 
-  subscribeToTable('products', handleRealtimeProducts);
-  subscribeToTable('categories', handleRealtimeCategories);
-  subscribeToTable('coupons', handleRealtimeCoupons);
-  subscribeToTable('orders', handleRealtimeOrders);
-  subscribeToTable('settings', handleRealtimeSettings);
+  const listenSettingDoc = (docId, callback) => {
+    try {
+      firebaseDb.collection('settings').doc(String(docId)).onSnapshot(snapshot => {
+        if (!snapshot.exists) return;
+        callback(snapshot.data());
+      }, error => {
+        console.warn(`Firebase realtime snapshot failed for settings/${docId}:`, error.message || error);
+      });
+    } catch (error) {
+      console.warn(`Firebase realtime listen failed for settings/${docId}:`, error.message || error);
+    }
+  };
+
+  listenCollection('products', rows => {
+    state.products = normalizeCollectionFromDb('products', rows);
+    renderProducts();
+    if (window.location.hash.startsWith('#category/')) handleHashChange();
+  });
+
+  listenCollection('categories', rows => {
+    state.categories = normalizeCollectionFromDb('categories', rows);
+    renderCategories();
+    populateCategorySelect();
+  });
+
+  listenCollection('coupons', rows => {
+    state.coupons = normalizeCollectionFromDb('coupons', rows);
+    renderCoupons(adminCouponSearch);
+  });
+
+  listenCollection('orders', rows => {
+    state.orders = normalizeCollectionFromDb('orders', rows);
+    renderOrders(adminOrderSearch);
+    orderCount.textContent = state.orders.length;
+    adminOrderBadge.textContent = state.orders.length;
+  });
+
+  listenSettingDoc('social', data => {
+    if (!data) return;
+    state.social = data;
+    updateSocialLinksDisplay();
+  });
+
+  listenSettingDoc('shipping_rates', data => {
+    if (!data || !data.rates) return;
+    state.shippingRates = { ...state.shippingRates, ...data.rates };
+    populateGovernorateOptions();
+  });
+
+  listenSettingDoc('review_images', data => {
+    if (!data || !data.images) return;
+    state.reviewImages = data.images;
+    renderReviewImages();
+    renderReviewImagesPreview();
+  });
 }
 
 function handleRealtimeProducts(eventType, newRow, oldRow) {
