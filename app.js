@@ -6,6 +6,7 @@ const sections = {
   cart: document.getElementById('section-cart'),
   checkout: document.getElementById('section-checkout'),
   admin: document.getElementById('section-admin'),
+  auth: document.getElementById('section-auth'),
 };
 const navLinks = document.querySelectorAll('[data-link]');
 const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
@@ -2384,6 +2385,7 @@ window.addEventListener('DOMContentLoaded', () => {
     orderCount.textContent = state.orders.length;
     adminOrderBadge.textContent = state.orders.length;
     updateSocialLinksDisplay();
+    restoreAuthState();
     if (!window.location.hash) window.location.hash = '#home';
     handleHashChange();
 
@@ -2460,6 +2462,105 @@ window.loginUser = loginUser;
 window.registerUser = registerUser;
 window.logoutUser = logoutUser;
 
+function showAuthMessage(text, success = false) {
+  const message = document.getElementById('auth-message');
+  if (!message) return;
+  message.textContent = text;
+  message.classList.remove('hidden');
+  message.style.color = success ? '#0b6623' : '#d7263d';
+}
+
+function hideAuthMessage() {
+  const message = document.getElementById('auth-message');
+  if (!message) return;
+  message.classList.add('hidden');
+}
+
+function persistAuthUser(user) {
+  window.currentAuthUser = user;
+  if (user) {
+    localStorage.setItem('farfashaAuthUser', JSON.stringify(user));
+  } else {
+    localStorage.removeItem('farfashaAuthUser');
+  }
+}
+
+function restoreAuthState() {
+  const raw = localStorage.getItem('farfashaAuthUser');
+  if (!raw) {
+    showAuthContent(false);
+    return;
+  }
+  try {
+    const user = JSON.parse(raw);
+    if (user && user.email) {
+      window.currentAuthUser = user;
+      showAuthContent(true, user);
+      return;
+    }
+  } catch (err) {
+    console.warn('Failed to parse stored auth user', err?.message || err);
+  }
+  showAuthContent(false);
+}
+
+function showAuthContent(isLoggedIn, user) {
+  const authTabs = document.querySelector('.auth-tabs');
+  const authPanels = document.querySelectorAll('.auth-panel');
+  const profilePanel = document.getElementById('auth-profile-panel');
+  const authTitle = document.getElementById('auth-title');
+  const authSubtitle = document.getElementById('auth-subtitle');
+
+  if (isLoggedIn && user) {
+    authTabs?.classList.add('hidden');
+    authPanels.forEach(panel => panel.classList.add('hidden'));
+    profilePanel?.classList.remove('hidden');
+    if (authTitle) authTitle.textContent = 'حسابي الشخصي';
+    if (authSubtitle) authSubtitle.textContent = 'أهلاً بك، يمكنك متابعة حسابك من هنا.';
+    const avatar = document.getElementById('profile-avatar');
+    const nameEl = document.getElementById('profile-name');
+    const emailEl = document.getElementById('profile-email');
+    const noteEl = document.getElementById('profile-note');
+    if (avatar) avatar.textContent = user.fullName ? user.fullName.trim().slice(0, 1).toUpperCase() : user.email.slice(0, 1).toUpperCase();
+    if (nameEl) nameEl.textContent = user.fullName || 'المستخدم';
+    if (emailEl) emailEl.textContent = user.email || '';
+    if (noteEl) noteEl.textContent = 'صفحة شخصية تجريبية. سيتم إعدادها لاحقًا حسب حسابك.';
+  } else {
+    authTabs?.classList.remove('hidden');
+    authPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.auth === 'login'));
+    profilePanel?.classList.add('hidden');
+    const loginTab = document.querySelector('.auth-tab[data-auth="login"]');
+    const registerTab = document.querySelector('.auth-tab[data-auth="register"]');
+    if (loginTab) loginTab.classList.add('active');
+    if (registerTab) registerTab.classList.remove('active');
+    if (authTitle) authTitle.textContent = 'تسجيل الدخول';
+    if (authSubtitle) authSubtitle.textContent = 'ادخل بياناتك للوصول إلى حسابك';
+  }
+}
+
+async function loadUserProfile(userId) {
+  if (!userId) return null;
+  if (!supabaseClient) await initSupabaseClient();
+  if (!supabaseClient || typeof supabaseClient.from !== 'function') return null;
+
+  try {
+    const result = await supabaseClient.from('profiles').select('*').eq('user_id', userId).single();
+    if (result?.data) return result.data;
+    if (result?.error) {
+      console.warn('Unable to load profile by user_id', result.error);
+    }
+  } catch (error) {
+    console.warn('loadUserProfile by user_id failed', error?.message || error);
+  }
+  try {
+    const result = await supabaseClient.from('profiles').select('*').eq('id', userId).single();
+    if (result?.data) return result.data;
+  } catch (error) {
+    console.warn('loadUserProfile by id failed', error?.message || error);
+  }
+  return null;
+}
+
 function switchAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach(button => {
     button.classList.toggle('active', button.dataset.auth === tab);
@@ -2467,90 +2568,84 @@ function switchAuthTab(tab) {
   document.querySelectorAll('.auth-panel').forEach(panel => {
     panel.classList.toggle('active', panel.dataset.auth === tab);
   });
+  hideAuthMessage();
 }
 
-function loginUser(event) {
+async function loginUser(event) {
   event.preventDefault();
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value.trim();
-  const message = document.getElementById('auth-message');
   if (!email || !password) {
-    if (message) {
-      message.textContent = 'من فضلك املأ جميع الحقول.';
-      message.classList.remove('hidden');
-    }
+    showAuthMessage('من فضلك املأ جميع الحقول.');
     return;
   }
-  if (message) {
-    message.textContent = 'تم تسجيل الدخول بشكل تجريبي، لكن هذه الميزة غير مفعلة حالياً.';
-    message.classList.remove('hidden');
+
+  try {
+    const { data, error } = await authSignIn({ email, password });
+    if (error) {
+      showAuthMessage(error.message || 'فشل تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.');
+      return;
+    }
+    const userId = resolveUserIdFromAuthResult(data);
+    const profile = await loadUserProfile(userId);
+    const currentUser = {
+      id: userId || null,
+      email,
+      fullName: profile?.full_name || profile?.fullName || email.split('@')[0],
+      phone: profile?.phone || ''
+    };
+    persistAuthUser(currentUser);
+    showAuthMessage('✅ تم تسجيل الدخول بنجاح.', true);
+    showAuthContent(true, currentUser);
+  } catch (err) {
+    showAuthMessage(err.message || 'حدث خطأ أثناء تسجيل الدخول.');
   }
 }
 
-function registerUser(event) {
+async function registerUser(event) {
   event.preventDefault();
   const name = document.getElementById('register-name').value.trim();
   const email = document.getElementById('register-email').value.trim();
   const phone = document.getElementById('register-phone').value.trim();
   const password = document.getElementById('register-password').value.trim();
   const confirmPassword = document.getElementById('register-confirm-password').value.trim();
-  const message = document.getElementById('auth-message');
+
   if (!name || !email || !phone || !password || !confirmPassword) {
-    if (message) {
-      message.textContent = 'من فضلك املأ جميع الحقول.';
-      message.classList.remove('hidden');
-    }
+    showAuthMessage('من فضلك املأ جميع الحقول.');
     return;
   }
   if (password !== confirmPassword) {
-    if (message) {
-      message.textContent = 'كلمتا المرور غير متطابقتين.';
-      message.classList.remove('hidden');
-    }
-    return;
-  }
-  if (!supabaseClient) {
-    if (message) {
-      message.textContent = 'حدث خطأ في الاتصال بقاعدة البيانات. حاول لاحقًا.';
-      message.classList.remove('hidden');
-    }
+    showAuthMessage('كلمتا المرور غير متطابقتين.');
     return;
   }
 
-  (async () => {
-    try {
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name, phone }
-        }
-      });
-      if (error) {
-        if (message) { message.textContent = error.message || 'خطأ أثناء التسجيل.'; message.classList.remove('hidden'); }
-        return;
-      }
-      // try to upsert profile row when user id is available
-      try {
-        const userId = data?.user?.id;
-        if (userId) {
-          await supabaseClient.from('profiles').upsert({ id: userId, full_name: name, phone });
-        }
-      } catch(e) {
-        console.warn('Could not upsert profile row:', e?.message || e);
-      }
-
-      if (message) {
-        message.textContent = '✅ تم إنشاء الحساب. تحقق بريدك للتأكيد إن لزم.';
-        message.classList.remove('hidden');
-      }
-      setTimeout(() => { window.location.hash = '#home'; }, 1800);
-    } catch (e) {
-      if (message) { message.textContent = e.message || 'خطأ غير متوقع.'; message.classList.remove('hidden'); }
+  try {
+    const { data, error } = await authSignUp({ name, phone, email, password });
+    if (error) {
+      showAuthMessage(error.message || 'خطأ أثناء التسجيل. حاول مجدداً.');
+      return;
     }
-  })();
+    const userId = resolveUserIdFromAuthResult(data);
+    if (userId) {
+      const profileResult = await upsertProfileRow(userId, name, phone, email);
+      if (profileResult?.error) {
+        console.warn('Failed to create profile row after signup', profileResult.error);
+      }
+    }
+    showAuthMessage('✅ تم إنشاء الحساب. يمكنك الآن تسجيل الدخول.', true);
+    switchAuthTab('login');
+    const loginEmail = document.getElementById('login-email');
+    const loginPassword = document.getElementById('login-password');
+    if (loginEmail) loginEmail.value = email;
+    if (loginPassword) loginPassword.value = '';
+  } catch (err) {
+    showAuthMessage(err.message || 'حدث خطأ غير متوقع أثناء التسجيل.');
+  }
 }
 
 function logoutUser() {
-  window.location.hash = '#home';
+  persistAuthUser(null);
+  showAuthContent(false);
+  hideAuthMessage();
+  window.location.hash = '#auth';
 }
