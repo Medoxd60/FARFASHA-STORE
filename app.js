@@ -127,6 +127,7 @@ let firebaseApp = null;
 let firebaseDb = null;
 let firebaseAuth = null;
 let firebaseStorage = null;
+let firebaseEnabled = false;
 let settingsField = 'value'; // Changed default to 'value' as it's more common in Supabase settings tables
 
 class SimpleSupabaseClient {
@@ -228,12 +229,17 @@ class SimpleSupabaseClient {
           return { data: result, error: null };
         };
         return {
-          select: () => ({
-            single: async () => {
-              const result = await execute();
-              return { data: Array.isArray(result.data) ? result.data[0] || null : result.data, error: null };
-            }
-          }),
+          select: () => {
+            const promise = execute();
+            return {
+              single: async () => {
+                const result = await promise;
+                return { data: Array.isArray(result.data) ? result.data[0] || null : result.data, error: null };
+              },
+              then: (resolve, reject) => promise.then(result => resolve({ data: result, error: null }), reject),
+              catch: (reject) => promise.catch(reject)
+            };
+          },
           then: (resolve, reject) => execute().then(resolve, reject),
           catch: (reject) => execute().catch(reject)
         };
@@ -243,11 +249,17 @@ class SimpleSupabaseClient {
 }
 
 async function initFirebaseClient() {
-  if (window.firebaseDB) {
+  firebaseEnabled = false;
+  if (!navigator.onLine) {
+    console.warn('Offline: skipping Firebase initialization');
+    return;
+  }
+  if (window.firebaseDB && window.firebaseAuth && window.firebaseStorage) {
     firebaseApp = window.firebaseApp || window.firebase.app();
     firebaseDb = window.firebaseDB;
     firebaseAuth = window.firebaseAuth;
     firebaseStorage = window.firebaseStorage;
+    firebaseEnabled = true;
     console.log('Firebase client initialized');
 
     if (window.firebase && window.firebase.firestore && typeof window.firebase.firestore === 'function') {
@@ -264,24 +276,84 @@ async function initFirebaseClient() {
         await firebaseAuth.signInAnonymously();
         console.log('Firebase anonymous auth succeeded');
       } catch (error) {
+        firebaseEnabled = false;
         console.warn('Firebase anonymous auth failed:', error.message);
       }
     }
     console.log('Firebase current user:', firebaseAuth ? firebaseAuth.currentUser : 'none');
   } else {
-    console.warn('Firebase client not available: window.firebaseDB missing');
+    console.warn('Firebase client not available or not ready, skipping initialization');
   }
 }
 
+async function loadSupabaseScript() {
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    return;
+  }
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-supabase-loader]');
+    if (existing) {
+      existing.addEventListener('load', resolve);
+      existing.addEventListener('error', reject);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
+    script.async = true;
+    script.setAttribute('data-supabase-loader', 'true');
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Supabase SDK'));
+    document.head.appendChild(script);
+  });
+}
+
 async function initSupabaseClient() {
+  try {
+    await loadSupabaseScript();
+  } catch (loadError) {
+    console.warn('Supabase SDK load failed, falling back to simple client:', loadError.message || loadError);
+  }
+
   if (window.supabase && typeof window.supabase.createClient === 'function') {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+    console.log('Supabase official client initialized', { client: supabaseClient?.constructor?.name });
     return;
   }
 
-  // Use our simple client as fallback
   supabaseClient = new SimpleSupabaseClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
-  console.log('Using simple Supabase client fallback');
+  console.log('Using simple Supabase client fallback', { client: supabaseClient?.constructor?.name });
+}
+
+async function testSupabaseConnection() {
+  if (!supabaseClient) {
+    console.warn('testSupabaseConnection: supabaseClient not initialized');
+    return { ok: false, error: 'client-not-init' };
+  }
+  try {
+    // Try official client path first
+    if (supabaseClient && typeof supabaseClient.from === 'function') {
+      const op = supabaseClient.from('products').select('*').order ? supabaseClient.from('products').select('*').order('id', { ascending: true }) : supabaseClient.from('products').select('*');
+      // support both simple client and official client
+      let res;
+      if (typeof op.then === 'function') {
+        res = await op;
+      } else if (typeof op.single === 'function') {
+        res = await op.single();
+      } else {
+        res = op;
+      }
+      console.log('testSupabaseConnection result:', res);
+      return { ok: true, data: res };
+    }
+    // fallback to direct REST request
+    const data = await directSupabaseRequest('products?select=*', 'GET');
+    console.log('testSupabaseConnection REST result length:', Array.isArray(data) ? data.length : 0);
+    return { ok: true, data };
+  } catch (error) {
+    console.error('testSupabaseConnection error:', error);
+    return { ok: false, error };
+  }
 }
 
 function initRealtimeSubscriptions() {
@@ -534,15 +606,21 @@ function mapCollectionToDb(collectionName, items) {
 async function saveToFirestore(collectionName, docId, data) {
   if (collectionName !== 'settings') return false;
 
-  if (firebaseDb) {
+  if (firebaseEnabled && firebaseDb) {
     try {
       await firebaseDb.collection(collectionName).doc(String(docId)).set(data, { merge: true });
       return true;
     } catch (error) {
+      firebaseEnabled = false;
       console.warn('Firebase saveToFirestore failed:', error.message);
     }
+  } else {
+    console.warn('Skipping Firebase saveToFirestore: Firebase not enabled');
   }
 
+  if (!supabaseClient) {
+    await initSupabaseClient();
+  }
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for saveToFirestore');
     return false;
@@ -583,15 +661,18 @@ async function saveToFirestore(collectionName, docId, data) {
 async function loadFromFirestore(collectionName, docId) {
   if (collectionName !== 'settings') return null;
 
-  if (firebaseDb) {
+  if (firebaseEnabled && firebaseDb) {
     try {
       const docRef = firebaseDb.collection(collectionName).doc(String(docId));
       const snapshot = await docRef.get();
       if (!snapshot.exists) return null;
       return snapshot.data();
     } catch (error) {
+      firebaseEnabled = false;
       console.warn('Firebase loadFromFirestore failed:', error.message);
     }
+  } else {
+    console.warn(`Skipping Firebase load for settings/${docId}: Firebase not enabled`);
   }
 
   if (!supabaseClient) {
@@ -654,15 +735,18 @@ async function directSupabaseRequest(path, method = 'GET', body = null, extraHea
 }
 
 async function loadSocialSettingsRow() {
-  if (firebaseDb) {
+  if (firebaseEnabled && firebaseDb) {
     try {
       const snapshot = await firebaseDb.collection('settings').doc('social').get();
       if (snapshot.exists) {
         return { key: 'social', ...snapshot.data() };
       }
     } catch (error) {
+      firebaseEnabled = false;
       console.warn('Firebase loadSocialSettingsRow failed:', error.message);
     }
+  } else {
+    console.warn('Skipping Firebase loadSocialSettingsRow: Firebase not enabled');
   }
 
   if (!supabaseClient) return null;
@@ -679,6 +763,216 @@ async function loadSocialSettingsRow() {
   return null;
 }
 
+// --- Auth helpers exposed for pages (signup / login) ---
+function showMessageElement(element, text, ok = false) {
+  if (!element) return;
+  element.style.display = 'block';
+  element.style.color = ok ? '#0b6623' : '#ff6b6b';
+  element.textContent = text;
+}
+
+async function directSupabaseAuthRequest(path, payload = {}, method = 'POST') {
+  const url = `${SUPABASE_URL}/auth/v1/${path}`;
+  const headers = {
+    apikey: SUPABASE_PUBLIC_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLIC_KEY}`,
+    'Content-Type': 'application/json'
+  };
+  try {
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: JSON.stringify(payload)
+    });
+    const text = await response.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+    if (!response.ok) {
+      console.error('directSupabaseAuthRequest failed', { url, status: response.status, body: data });
+      return { data: null, error: data || new Error(`Auth request failed ${response.status}`) };
+    }
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function authSignUp({ name, phone, email, password }) {
+  if (!supabaseClient) await initSupabaseClient();
+  if (supabaseClient && supabaseClient.auth && typeof supabaseClient.auth.signUp === 'function') {
+    return supabaseClient.auth.signUp({ email, password, options: { data: { full_name: name, phone } } });
+  }
+
+  console.warn('Supabase auth client unavailable, using REST fallback for signup');
+  return directSupabaseAuthRequest('signup', {
+    email,
+    password,
+    options: {
+      data: { full_name: name, phone }
+    }
+  });
+}
+
+async function authSignIn({ email, password }) {
+  if (!supabaseClient) await initSupabaseClient();
+  if (supabaseClient && supabaseClient.auth && typeof supabaseClient.auth.signInWithPassword === 'function') {
+    return supabaseClient.auth.signInWithPassword({ email, password });
+  }
+
+  console.warn('Supabase auth client unavailable, using REST fallback for signin');
+  return directSupabaseAuthRequest('token?grant_type=password', { email, password });
+}
+
+async function upsertProfileRow(userId, fullName, phone, email) {
+  if (!userId) {
+    return { data: null, error: new Error('Missing user id for profile creation') };
+  }
+  const timestamp = new Date().toISOString();
+  const candidates = [
+    { user_id: userId, full_name: fullName, phone, email, created_at: timestamp },
+    { id: userId, full_name: fullName, phone, email, created_at: timestamp }
+  ];
+  if (!supabaseClient) await initSupabaseClient();
+
+  if (supabaseClient && typeof supabaseClient.from === 'function') {
+    for (const profile of candidates) {
+      try {
+        console.log('Attempting profiles insert via client', profile);
+        const result = await supabaseClient.from('profiles').insert(profile).select().single();
+        console.log('profiles insert client result', result);
+        if (result && result.error) {
+          console.warn('profiles insert returned error', result.error, profile);
+          continue;
+        }
+        return { data: result.data || result, error: null };
+      } catch (error) {
+        console.warn('profiles insert failed via client', error?.message || error, profile);
+      }
+    }
+  }
+
+  for (const profile of candidates) {
+    try {
+      console.log('Attempting profiles insert via REST', profile);
+      const res = await directSupabaseRequest('profiles', 'POST', profile);
+      console.log('profiles insert REST result', res);
+      return { data: res, error: null };
+    } catch (error) {
+      console.error('profiles insert via REST failed', error?.message || error, profile);
+      // continue to next candidate
+    }
+  }
+
+  return { data: null, error: new Error('Failed to insert profile using any candidate key') };
+}
+
+function resolveUserIdFromAuthResult(data) {
+  if (!data) return null;
+  if (data.user?.id) return data.user.id;
+  if (data.id) return data.id;
+  if (data.user_id) return data.user_id;
+  if (data.data?.user?.id) return data.data.user.id;
+  return null;
+}
+
+// Wire auth forms on register/login page to the functions above
+async function initAuthPage() {
+  try {
+    await initSupabaseClient();
+  } catch (e) {
+    console.warn('initAuthPage: supabase init error', e.message);
+  }
+
+  const tabLogin = document.getElementById('tab-login');
+  const tabRegister = document.getElementById('tab-register');
+  const panelLogin = document.getElementById('panel-login');
+  const panelRegister = document.getElementById('panel-register');
+  function switchTab(to) {
+    if (to === 'login') {
+      tabLogin.classList.add('active'); tabRegister.classList.remove('active');
+      panelLogin.classList.add('active'); panelRegister.classList.remove('active');
+    } else {
+      tabRegister.classList.add('active'); tabLogin.classList.remove('active');
+      panelRegister.classList.add('active'); panelLogin.classList.remove('active');
+    }
+  }
+  if (tabLogin && tabRegister) {
+    tabLogin.addEventListener('click', () => switchTab('login'));
+    tabRegister.addEventListener('click', () => switchTab('register'));
+  }
+  if (location.hash === '#login' || location.search.includes('tab=login')) switchTab('login');
+
+  const registerForm = document.getElementById('register-form');
+  const regMsg = document.getElementById('reg-msg');
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (regMsg) regMsg.style.display = 'none';
+      const name = document.getElementById('reg-name').value.trim();
+      const phone = document.getElementById('reg-phone').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const confirm = document.getElementById('reg-confirm').value;
+      if (!name || !phone || !email || !password) return showMessageElement(regMsg, 'من فضلك أكمل جميع الحقول.');
+      if (password !== confirm) return showMessageElement(regMsg, 'كلمتا المرور غير متطابقتين.');
+      try {
+        const { data, error } = await authSignUp({ name, phone, email, password });
+        if (error) {
+          console.error('Signup failed', error);
+          return showMessageElement(regMsg, error.message || 'خطأ أثناء التسجيل.');
+        }
+        const userId = resolveUserIdFromAuthResult(data);
+        if (!userId) {
+          console.warn('Unable to resolve user id from signup result', data);
+        } else {
+          const profileResult = await upsertProfileRow(userId, name, phone, email);
+          if (profileResult.error) {
+            console.warn('Failed to create profile for user', userId, profileResult.error);
+          } else {
+            console.log('Profile row created or updated', profileResult.data);
+          }
+        }
+        showMessageElement(regMsg, '✅ تم إنشاء الحساب. جاري التحويل.', true);
+        setTimeout(() => window.location.href = 'index.html', 1400);
+      } catch (err) {
+        showMessageElement(regMsg, err.message || 'خطأ غير متوقع.');
+      }
+    });
+  }
+
+  const loginForm = document.getElementById('login-form');
+  const loginMsg = document.getElementById('login-msg');
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (loginMsg) loginMsg.style.display = 'none';
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      if (!email || !password) return showMessageElement(loginMsg, 'من فضلك املأ البريد و كلمة المرور.');
+      try {
+        const { error } = await authSignIn({ email, password });
+        if (error) return showMessageElement(loginMsg, error.message || 'فشل تسجيل الدخول.');
+        showMessageElement(loginMsg, '✅ تم تسجيل الدخول. جاري التوجيه...', true);
+        setTimeout(() => window.location.href = 'index.html', 900);
+      } catch (err) {
+        showMessageElement(loginMsg, err.message || 'فشل تسجيل الدخول.');
+      }
+    });
+  }
+}
+
+// Expose explicitly to avoid issues when script execution order differs
+try {
+  window.initAuthPage = initAuthPage;
+} catch (e) {
+  console.warn('Unable to attach initAuthPage to window', e?.message || e);
+}
+
+// expose to window
+window.initAuthPage = initAuthPage;
+window.authSignUp = authSignUp;
+window.authSignIn = authSignIn;
+
 async function loadSocialSettings() {
   const row = await loadSocialSettingsRow();
   if (!row) return null;
@@ -689,13 +983,16 @@ async function loadSocialSettings() {
 }
 
 async function saveSocialSettings(social) {
-  if (firebaseDb) {
+  if (firebaseEnabled && firebaseDb) {
     try {
       await firebaseDb.collection('settings').doc('social').set({ value: social }, { merge: true });
       return true;
     } catch (error) {
+      firebaseEnabled = false;
       console.warn('Firebase saveSocialSettings failed:', error.message);
     }
+  } else {
+    console.warn('Skipping Firebase saveSocialSettings: Firebase not enabled');
   }
 
   if (!supabaseClient) {
@@ -722,7 +1019,7 @@ async function saveSocialSettings(social) {
 }
 
 async function loadCollectionFromFirestore(collectionName) {
-  if (firebaseDb) {
+  if (firebaseEnabled && firebaseDb) {
     try {
       console.log(`Attempting to load ${collectionName} from Firebase...`);
       const snapshot = await firebaseDb.collection(collectionName).get();
@@ -730,8 +1027,11 @@ async function loadCollectionFromFirestore(collectionName) {
       snapshot.forEach(doc => rows.push(doc.data()));
       return normalizeCollectionFromDb(collectionName, rows);
     } catch (error) {
+      firebaseEnabled = false;
       console.warn('Firebase loadCollectionFromFirestore failed:', error.message);
     }
+  } else {
+    console.warn(`Skipping Firebase load for ${collectionName}: Firebase not enabled`);
   }
 
   if (!supabaseClient) {
@@ -741,25 +1041,44 @@ async function loadCollectionFromFirestore(collectionName) {
   try {
     console.log(`Attempting to load ${collectionName} from Supabase...`);
     const isDescending = collectionName === 'products'; // Newest products first
-    const { data, error } = await supabaseClient
+    const query = supabaseClient
       .from(collectionName)
-      .select('*')
-      .order('id', { ascending: !isDescending });
+      .select('*');
+
+    const queryWithOrder = typeof query.order === 'function'
+      ? query.order('id', { ascending: !isDescending })
+      : query;
+
+    const result = await queryWithOrder;
+    const data = result?.data || result;
+    const error = result?.error || null;
+
     if (error) {
       console.error(`Error loading ${collectionName} from Supabase:`, error);
-      return [];
+      throw error;
+    }
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn(`No rows returned for ${collectionName} from Supabase; trying direct REST fallback.`);
+      const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
+      return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
     }
     console.log(`Raw data from ${collectionName}:`, data);
-    return normalizeCollectionFromDb(collectionName, data || []);
+    return normalizeCollectionFromDb(collectionName, data);
   } catch (error) {
     console.error(`Exception loading ${collectionName} from Supabase:`, error);
-    return [];
+    try {
+      const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
+      return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
+    } catch (fallbackError) {
+      console.error(`Supabase REST fallback failed for ${collectionName}:`, fallbackError);
+      return [];
+    }
   }
 }
 
 async function saveCollectionToFirestore(collectionName, items) {
   if (!Array.isArray(items) || items.length === 0) return;
-  if (firebaseDb) {
+  if (firebaseEnabled && firebaseDb) {
     try {
       const payload = mapCollectionToDb(collectionName, items);
       const batch = firebaseDb.batch();
@@ -771,8 +1090,14 @@ async function saveCollectionToFirestore(collectionName, items) {
       console.log(`Successfully saved ${collectionName} to Firebase`);
       return;
     } catch (error) {
+      firebaseEnabled = false;
       console.warn('Firebase saveCollectionToFirestore failed:', error.message);
     }
+  } else {
+    console.warn(`Skipping Firebase saveCollectionToFirestore for ${collectionName}: Firebase not enabled`);
+  }
+  if (!supabaseClient) {
+    await initSupabaseClient();
   }
   if (!supabaseClient) {
     console.error('Supabase client is not initialized for saveCollectionToFirestore');
@@ -781,11 +1106,20 @@ async function saveCollectionToFirestore(collectionName, items) {
   try {
     console.log(`Falling back to Supabase for ${collectionName}`);
     const payload = mapCollectionToDb(collectionName, items);
-    const { data, error } = await supabaseClient
+    const upsertOp = supabaseClient
       .from(collectionName)
-      .upsert(payload, { onConflict: 'id' })
-      .select()
-      .single();
+      .upsert(payload, { onConflict: 'id' });
+
+    let result;
+    if (typeof upsertOp.select === 'function') {
+      result = await upsertOp.select();
+    } else if (typeof upsertOp.then === 'function') {
+      result = await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
+    } else {
+      result = await upsertOp;
+    }
+
+    const error = result?.error;
     if (error) {
       console.error(`Error saving ${collectionName} to Supabase:`, error);
     } else {
@@ -892,6 +1226,7 @@ function getProductCardFooter(product, stopPropagation = false) {
 }
 
 function renderProducts() {
+  if (!productGrid) return;
   productGrid.innerHTML = state.products.map(product => {
     const cardFooter = getProductCardFooter(product, true);
     return `
@@ -914,6 +1249,7 @@ function renderProducts() {
 }
 
 function renderLatestProducts() {
+  if (!latestProductsGrid) return;
   const availableProducts = state.products.filter(product => product.available !== false);
   const latest = availableProducts.slice(0, 8);
   latestProductsGrid.innerHTML = latest.map(product => {
@@ -933,6 +1269,7 @@ function renderLatestProducts() {
 }
 
 function renderPickedProducts() {
+  if (!pickedProductsGrid) return;
   const availableProducts = state.products.filter(product => product.available !== false);
   const shuffled = [...availableProducts].sort(() => Math.random() - 0.5);
   const picked = shuffled.slice(0, 4);
@@ -953,6 +1290,7 @@ function renderPickedProducts() {
 }
 
 function renderCategories() {
+  if (!categorySlider) return;
   categorySlider.innerHTML = state.categories.length ? `
     <div class="categories-gallery">
       ${state.categories.map(category => `
@@ -966,6 +1304,7 @@ function renderCategories() {
 }
 
 function renderCategoryPage(categoryName) {
+  if (!categoryPageTitle || !categoryPageDescription || !categoryProductsGrid) return;
   const categoryProducts = state.products.filter(product => product.category === categoryName && product.available !== false);
   categoryPageTitle.textContent = categoryName;
   categoryPageDescription.textContent = `كل المنتجات الموجودة في فئة ${categoryName}.`;
@@ -993,6 +1332,7 @@ function renderProductDetail(productId) {
   const productDetailTitle = document.getElementById('product-detail-title');
   const productDetailCategory = document.getElementById('product-detail-category');
   const productDetailContent = document.getElementById('product-detail-content');
+  if (!productDetailContent || !productDetailTitle || !productDetailCategory) return;
 
   productDetailTitle.textContent = product.name;
   productDetailCategory.textContent = product.category;
@@ -1075,6 +1415,7 @@ function buyNow(productId) {
 
 function renderCategoryPreview() {
   const preview = document.getElementById('category-preview-list');
+  if (!preview) return;
   preview.innerHTML = state.categories.length ? state.categories.map(category => `
     <article class="admin-card category-admin-card">
       <div class="admin-body">
@@ -1205,6 +1546,7 @@ async function deleteCategory(id) {
 
 function populateCategorySelect() {
   const select = document.getElementById('new-category');
+  if (!select) return;
   select.innerHTML = '<option value="">اختر الفئة</option>';
   state.categories.forEach(category => {
     const option = document.createElement('option');
@@ -1278,6 +1620,7 @@ function removeGalleryImage(index) {
 }
 
 function renderReviewImages() {
+  if (!reviewImagesGrid) return;
   const reviews = [...state.reviewImages].sort(() => Math.random() - 0.5).slice(0, 4);
   reviewImagesGrid.innerHTML = reviews.length ? reviews.map(image => `
     <article class="review-card">
@@ -1287,6 +1630,7 @@ function renderReviewImages() {
 }
 
 function renderReviewImagesPreview() {
+  if (!reviewImagesPreview) return;
   reviewImagesPreview.innerHTML = state.reviewImages.length ? state.reviewImages.map((image, index) => `
     <article class="review-card review-card-preview">
       <img src="${image}" alt="صورة رأي عميل" loading="lazy">
@@ -1320,6 +1664,7 @@ function addReviewImage(event) {
 }
 
 function renderDiscountedProducts() {
+  if (!discountedProductsGrid) return;
   const discounted = state.products.filter(product => product.discount && product.available !== false);
   discountedProductsGrid.innerHTML = discounted.length ? discounted.map(product => {
     const cardFooter = getProductCardFooter(product, true);
@@ -1338,6 +1683,7 @@ function renderDiscountedProducts() {
 }
 
 function renderCart() {
+  if (!cartTableBody) return;
   cartTableBody.innerHTML = state.cart.length ? state.cart.map(item => `
     <tr>
       <td><img src="${item.img}" alt="${item.name}"></td>
@@ -1493,6 +1839,7 @@ async function submitOrder(event) {
 }
 
 function renderOrders(search = '') {
+  if (!ordersList) return;
   adminOrderSearch = search.toLowerCase().trim();
   const filtered = state.orders.filter(order => {
     const term = `${order.customer} ${order.orderNumber} ${order.id} ${order.phone}`.toLowerCase();
@@ -1704,6 +2051,7 @@ function setOrderStatus(orderId, status) {
 }
 
 function renderAdminProducts(search = '', page = 1) {
+  if (!adminProductsTable) return;
   adminProductSearch = search.toLowerCase().trim();
   adminProductPage = page;
   const filtered = state.products.filter(product => {
@@ -1745,6 +2093,7 @@ function renderAdminProducts(search = '', page = 1) {
 
   // Render pagination
   const paginationEl = document.getElementById('admin-pagination');
+  if (!paginationEl) return;
   paginationEl.innerHTML = '';
   if (totalPages > 1) {
     if (page > 1) {
@@ -1939,8 +2288,18 @@ function fillSocialForm() {
 }
 
 async function loadRemoteData() {
+  if (!navigator.onLine) {
+    console.warn('Offline: skipping remote data load until online');
+    return;
+  }
   await initFirebaseClient();
   await initSupabaseClient();
+  try {
+    const testRes = await testSupabaseConnection();
+    console.log('Supabase connection test:', testRes);
+  } catch (e) {
+    console.warn('Supabase connection test failed:', e);
+  }
   console.log('Clients initialized, loading remote data...');
 
   const savedSocial = await loadSocialSettings();
@@ -2014,19 +2373,28 @@ async function loadRemoteData() {
 
 window.addEventListener('hashchange', handleHashChange);
 window.addEventListener('DOMContentLoaded', () => {
-  renderProducts();
-  renderCart();
-  renderReviewImages();
-  renderReviewImagesPreview();
-  renderOrders();
-  renderCategories();
-  populateCategorySelect();
-  orderCount.textContent = state.orders.length;
-  adminOrderBadge.textContent = state.orders.length;
-  updateSocialLinksDisplay();
-  if (!window.location.hash) window.location.hash = '#home';
-  handleHashChange();
+  try {
+    renderProducts();
+    renderCart();
+    renderReviewImages();
+    renderReviewImagesPreview();
+    renderOrders();
+    renderCategories();
+    populateCategorySelect();
+    orderCount.textContent = state.orders.length;
+    adminOrderBadge.textContent = state.orders.length;
+    updateSocialLinksDisplay();
+    if (!window.location.hash) window.location.hash = '#home';
+    handleHashChange();
 
+    loadRemoteData();
+  } catch (err) {
+    console.error('Error during DOMContentLoaded initialization:', err?.message || err);
+  }
+});
+
+window.addEventListener('online', () => {
+  console.log('Network online, retrying remote data load');
   loadRemoteData();
 });
 
@@ -2151,17 +2519,26 @@ function registerUser(event) {
 
   (async () => {
     try {
-      const { data, error } = await supabaseClient.auth.signUp({ email, password }, { data: { full_name: name, phone } });
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: name, phone }
+        }
+      });
       if (error) {
         if (message) { message.textContent = error.message || 'خطأ أثناء التسجيل.'; message.classList.remove('hidden'); }
         return;
       }
-      // try to upsert profile
+      // try to upsert profile row when user id is available
       try {
-        if (data && data.user && data.user.id) {
-          await supabaseClient.from('profiles').upsert({ id: data.user.id, full_name: name, phone }).catch(()=>{});
+        const userId = data?.user?.id;
+        if (userId) {
+          await supabaseClient.from('profiles').upsert({ id: userId, full_name: name, phone });
         }
-      } catch(e) { /* ignore */ }
+      } catch(e) {
+        console.warn('Could not upsert profile row:', e?.message || e);
+      }
 
       if (message) {
         message.textContent = '✅ تم إنشاء الحساب. تحقق بريدك للتأكيد إن لزم.';
