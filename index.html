@@ -13,13 +13,8 @@
   <header>
     <div class="navbar">
       <a class="brand" href="#home"><span>FASHA</span>FAR</a>
-      <nav class="menu" aria-label="القائمة الرئيسية">
-        <a href="#home" data-link="home">الرئيسية</a>
-        <a href="#products" data-link="products">المنتجات</a>
-        <a href="#cart" data-link="cart">السلة (<span id="cart-count">0</span>)</a>
-        <a href="#checkout" data-link="checkout">إتمام الطلب</a>
-        <a href="#admin" data-link="admin">لوحة التحكم</a>
-      </nav>
+      <a href="#admin" data-link="admin">لوحة التحكم</a>
+      
     </div>
   </header>
 
@@ -490,6 +485,15 @@
           </form>
         </div>
         <div id="auth-message" class="alert hidden"></div>
+        <div id="auth-profile-panel" class="user-profile hidden">
+          <div class="user-avatar" id="profile-avatar">م</div>
+          <div class="user-info">
+            <h3 id="profile-name">حساب المستخدم</h3>
+            <p id="profile-email">user@example.com</p>
+            <p id="profile-note">هذه الصفحة الشخصية ستُجهز لاحقًا. يمكنك تسجيل الخروج أو العودة لاحقًا.</p>
+          </div>
+          <button class="logout-btn" type="button" onclick="logoutUser()">تسجيل خروج</button>
+        </div>
       </div>
     </section>
   </main>
@@ -516,7 +520,7 @@
         <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
       </svg>
     </a>
-    <a href="register.html" data-link="auth" aria-label="حسابي">
+    <a href="#auth" data-link="auth" aria-label="حسابي">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
       </svg>

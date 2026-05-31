@@ -57,86 +57,19 @@
     </section>
   </main>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+  <script src="app.js"></script>
   <script>
-    // Replace these values with your Firebase project config if different
-    const firebaseConfig = {
-      apiKey: "AIzaSyDCCdsQVz4OFS2XVRfuh-6c8xkamN_7uTc",
-      authDomain: "farfasha-store.firebaseapp.com",
-      projectId: "farfasha-store",
-      storageBucket: "farfasha-store.firebasestorage.app",
-      messagingSenderId: "607506266978",
-      appId: "1:607506266978:web:46217b48384f4f661dca3b",
-      measurementId: "G-1MN8P3734F"
-    };
-    firebase.initializeApp(firebaseConfig);
-    window.firebaseApp = firebase.app();
-    window.firebaseAuth = firebase.auth();
-    window.firebaseDB = firebase.firestore();
-    window.firebaseStorage = firebase.storage();
-
-    (function() {
-      const tabLogin = document.getElementById('tab-login');
-      const tabRegister = document.getElementById('tab-register');
-      const panelLogin = document.getElementById('panel-login');
-      const panelRegister = document.getElementById('panel-register');
-      function switchTab(to) {
-        if (to === 'login') {
-          tabLogin.classList.add('active'); tabRegister.classList.remove('active');
-          panelLogin.classList.add('active'); panelRegister.classList.remove('active');
-        } else {
-          tabRegister.classList.add('active'); tabLogin.classList.remove('active');
-          panelRegister.classList.add('active'); panelLogin.classList.remove('active');
+    (async () => {
+      if (typeof initAuthPage === 'function') {
+        try {
+          await initAuthPage();
+        } catch (e) {
+          console.warn('initAuthPage failed:', e.message);
         }
+      } else {
+        console.warn('initAuthPage not found in app.js');
       }
-      tabLogin.addEventListener('click', () => switchTab('login'));
-      tabRegister.addEventListener('click', () => switchTab('register'));
-      if (location.hash === '#login' || location.search.includes('tab=login')) switchTab('login');
-
-      async function initAuthPage() {
-        const registerForm = document.getElementById('register-form');
-        const regMsg = document.getElementById('reg-msg');
-        registerForm.addEventListener('submit', async (e) => {
-          e.preventDefault(); regMsg.style.display = 'none';
-          const name = document.getElementById('reg-name').value.trim();
-          const phone = document.getElementById('reg-phone').value.trim();
-          const email = document.getElementById('reg-email').value.trim();
-          const password = document.getElementById('reg-password').value;
-          const confirm = document.getElementById('reg-confirm').value;
-          if (!name || !phone || !email || !password) return showRegError('من فضلك أكمل جميع الحقول.');
-          if (password !== confirm) return showRegError('كلمتا المرور غير متطابقتين.');
-          try {
-            const userCred = await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
-            const uid = userCred.user.uid;
-            try {
-              await window.firebaseDB.collection('profiles').doc(uid).set({ full_name: name, phone, email });
-            } catch (e) { /* non-fatal */ }
-            regMsg.style.display = 'block'; regMsg.style.color = '#0b6623'; regMsg.textContent = '✅ تم إنشاء الحساب. جاري التحويل.';
-            setTimeout(() => window.location.href = 'index.html', 1400);
-          } catch (err) { showRegError(err.message || 'خطأ غير متوقع.'); }
-        });
-        function showRegError(text){ regMsg.style.display='block'; regMsg.style.color='#ff6b6b'; regMsg.textContent=text; }
-
-        const loginForm = document.getElementById('login-form');
-        const loginMsg = document.getElementById('login-msg');
-        loginForm.addEventListener('submit', async (e) => {
-          e.preventDefault(); loginMsg.style.display='none';
-          const email = document.getElementById('login-email').value.trim();
-          const password = document.getElementById('login-password').value;
-          if (!email || !password) return showLoginError('من فضلك املأ البريد و كلمة المرور.');
-          try {
-            await window.firebaseAuth.signInWithEmailAndPassword(email, password);
-            loginMsg.style.display='block'; loginMsg.style.color='#0b6623'; loginMsg.textContent='✅ تم تسجيل الدخول. جاري التوجيه...';
-            setTimeout(()=> window.location.href = 'index.html', 900);
-          } catch (err) { showLoginError(err.message || 'فشل تسجيل الدخول.'); }
-        });
-        function showLoginError(text){ loginMsg.style.display='block'; loginMsg.style.color='#ff6b6b'; loginMsg.textContent=text; }
-      }
-
-      initAuthPage();
     })();
   </script>
 </body>
