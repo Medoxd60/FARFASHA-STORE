@@ -1026,7 +1026,10 @@ async function loadCollectionFromFirestore(collectionName) {
       const snapshot = await firebaseDb.collection(collectionName).get();
       const rows = [];
       snapshot.forEach(doc => rows.push(doc.data()));
-      return normalizeCollectionFromDb(collectionName, rows);
+      if (rows.length > 0) {
+        return normalizeCollectionFromDb(collectionName, rows);
+      }
+      console.warn(`Firebase returned no rows for ${collectionName}, falling back to Supabase.`);
     } catch (error) {
       firebaseEnabled = false;
       console.warn('Firebase loadCollectionFromFirestore failed:', error.message);
