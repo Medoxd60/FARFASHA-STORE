@@ -310,18 +310,35 @@ async function loadSupabaseScript() {
 }
 
 async function initSupabaseClient() {
-  try {
-    await loadSupabaseScript();
-  } catch (loadError) {
-    console.warn('Supabase SDK load failed, falling back to simple client:', loadError.message || loadError);
+  // Try loading the Supabase SDK with a small retry loop because
+  // some devices/networks intermittently fail to load external scripts.
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await loadSupabaseScript();
+      lastErr = null;
+      break;
+    } catch (loadError) {
+      lastErr = loadError;
+      console.warn(`Supabase SDK load attempt ${attempt + 1} failed:`, loadError?.message || loadError);
+      // small backoff before retry
+      await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+    }
   }
 
   if (window.supabase && typeof window.supabase.createClient === 'function') {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
-    console.log('Supabase official client initialized', { client: supabaseClient?.constructor?.name });
-    return;
+    try {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+      console.log('Supabase official client initialized', { client: supabaseClient?.constructor?.name });
+      return;
+    } catch (e) {
+      console.warn('Supabase official client create failed:', e?.message || e);
+    }
   }
 
+  if (lastErr) {
+    console.warn('Supabase SDK could not be loaded after retries, using REST fallback client');
+  }
   supabaseClient = new SimpleSupabaseClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
   console.log('Using simple Supabase client fallback', { client: supabaseClient?.constructor?.name });
 }
@@ -1026,7 +1043,10 @@ async function loadCollectionFromFirestore(collectionName) {
       const snapshot = await firebaseDb.collection(collectionName).get();
       const rows = [];
       snapshot.forEach(doc => rows.push(doc.data()));
-      return normalizeCollectionFromDb(collectionName, rows);
+      if (rows.length > 0) {
+        return normalizeCollectionFromDb(collectionName, rows);
+      }
+      console.warn(`Firebase returned no rows for ${collectionName}, falling back to Supabase.`);
     } catch (error) {
       firebaseEnabled = false;
       console.warn('Firebase loadCollectionFromFirestore failed:', error.message);
@@ -2290,8 +2310,9 @@ function fillSocialForm() {
 
 async function loadRemoteData() {
   if (!navigator.onLine) {
-    console.warn('Offline: skipping remote data load until online');
-    return;
+    console.warn('Navigator reports offline — attempting remote data load anyway (some devices mis-report network).');
+    // continue attempting loads even if navigator reports offline; some devices
+    // incorrectly set this flag or block preliminary requests.
   }
   await initFirebaseClient();
   await initSupabaseClient();
