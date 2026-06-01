@@ -263,24 +263,13 @@ async function initFirebaseClient() {
     firebaseEnabled = true;
     console.log('Firebase client initialized');
 
+    // Do not enable multi-tab persistence or anonymous auth by default.
+    // This avoids extra network calls and timeout errors in environments
+    // where Firebase access is blocked or not required.
     if (window.firebase && window.firebase.firestore && typeof window.firebase.firestore === 'function') {
-      try {
-        await window.firebase.firestore().enablePersistence({ synchronizeTabs: true });
-        console.log('Firebase offline persistence enabled');
-      } catch (error) {
-        console.warn('Firebase persistence not enabled:', error.message);
-      }
+      console.log('Skipping Firebase offline persistence to avoid compatibility/network errors');
     }
 
-    if (firebaseAuth && !firebaseAuth.currentUser) {
-      try {
-        await firebaseAuth.signInAnonymously();
-        console.log('Firebase anonymous auth succeeded');
-      } catch (error) {
-        firebaseEnabled = false;
-        console.warn('Firebase anonymous auth failed:', error.message);
-      }
-    }
     console.log('Firebase current user:', firebaseAuth ? firebaseAuth.currentUser : 'none');
   } else {
     console.warn('Firebase client not available or not ready, skipping initialization');
@@ -294,16 +283,20 @@ async function loadSupabaseScript() {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-supabase-loader]');
     if (existing) {
-      existing.addEventListener('load', resolve);
-      existing.addEventListener('error', reject);
-      return;
+      if (existing.getAttribute('data-supabase-loaded') === 'true') {
+        return resolve();
+      }
+      existing.remove();
     }
 
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
     script.async = true;
     script.setAttribute('data-supabase-loader', 'true');
-    script.onload = () => resolve();
+    script.onload = () => {
+      script.setAttribute('data-supabase-loaded', 'true');
+      resolve();
+    };
     script.onerror = () => reject(new Error('Failed to load Supabase SDK'));
     document.head.appendChild(script);
   });
@@ -544,7 +537,8 @@ function handleRealtimeOrders(eventType, newRow, oldRow) {
 
 function handleRealtimeSettings(eventType, newRow, oldRow) {
   const row = newRow || oldRow;
-  if (!row || (!row.key && !row.id)) return;
+  if (!row || (!row.key && !row.id)) return;  
+  
   const rowKey = row.key || row.id;
 
   let settingsData;
@@ -702,7 +696,13 @@ function mapCollectionToDb(collectionName, items) {
     case 'coupons':
       return items.map(mapCouponToDb);
     case 'categories':
-      return items.map(item => ({ id: item.id, name: item.name, img: item.img }));
+      return items.map(item => {
+        const row = { name: item.name, img: item.img };
+        if (typeof item.id === 'number' && item.id > 0) {
+          row.id = item.id;
+        }
+        return row;
+      });
     default:
       return items;
   }
@@ -837,6 +837,19 @@ async function directSupabaseRequest(path, method = 'GET', body = null, extraHea
     throw new Error(`Supabase request failed: ${response.status} ${response.statusText} ${text}`);
   }
   return text ? JSON.parse(text) : null;
+}
+
+function splitPayloadByKeySet(payload) {
+  const rows = Array.isArray(payload) ? payload : [payload];
+  const groups = new Map();
+  rows.forEach(row => {
+    const keySet = Object.keys(row).sort().join(',');
+    if (!groups.has(keySet)) {
+      groups.set(keySet, []);
+    }
+    groups.get(keySet).push(row);
+  });
+  return Array.from(groups.values());
 }
 
 async function loadSocialSettingsRow() {
@@ -1143,9 +1156,13 @@ async function loadCollectionFromFirestore(collectionName) {
   }
 
   if (!supabaseClient) {
+    await initSupabaseClient();
+  }
+  if (!supabaseClient) {
     console.error('Supabase client is not initialized for loadCollectionFromFirestore');
     return [];
   }
+
   try {
     console.log(`Attempting to load ${collectionName} from Supabase...`);
     const isDescending = collectionName === 'products'; // Newest products first
@@ -1158,24 +1175,33 @@ async function loadCollectionFromFirestore(collectionName) {
       : query;
 
     const result = await queryWithOrder;
-    const data = result?.data || result;
+    const data = result?.data ?? result;
     const error = result?.error || null;
 
     if (error) {
       console.error(`Error loading ${collectionName} from Supabase:`, error);
       throw error;
     }
-    if (!Array.isArray(data) || data.length === 0) {
+
+    if (!Array.isArray(data)) {
+      console.warn(`Supabase returned unexpected data for ${collectionName}, using REST fallback.`);
+      const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
+      return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
+    }
+
+    if (data.length === 0) {
       console.warn(`No rows returned for ${collectionName} from Supabase; trying direct REST fallback.`);
       const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
       return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
     }
-    console.log(`Raw data from ${collectionName}:`, data);
+
+    console.log(`Loaded ${data.length} rows for ${collectionName} from Supabase.`);
     return normalizeCollectionFromDb(collectionName, data);
   } catch (error) {
     console.error(`Exception loading ${collectionName} from Supabase:`, error);
     try {
       const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
+      console.log(`Loaded ${Array.isArray(fallbackData) ? fallbackData.length : 0} rows for ${collectionName} from Supabase REST fallback.`);
       return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
     } catch (fallbackError) {
       console.error(`Supabase REST fallback failed for ${collectionName}:`, fallbackError);
@@ -1196,7 +1222,24 @@ async function saveCollectionToFirestore(collectionName, items) {
       });
       await batch.commit();
       console.log(`Successfully saved ${collectionName} to Firebase`);
-      return;
+      // Also attempt to persist to Supabase so the Postgres tables stay in sync.
+      try {
+        if (!supabaseClient) await initSupabaseClient();
+        if (supabaseClient && typeof supabaseClient.from === 'function') {
+          const payload = mapCollectionToDb(collectionName, items);
+          const upsertOp = supabaseClient.from(collectionName).upsert(payload, { onConflict: 'id' });
+          if (typeof upsertOp.select === 'function') {
+            await upsertOp.select();
+          } else if (typeof upsertOp.then === 'function') {
+            await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
+          }
+          console.log(`Also saved ${collectionName} to Supabase after Firebase commit`);
+        } else {
+          console.warn('Supabase client unavailable; skipped syncing Firebase -> Supabase');
+        }
+      } catch (err) {
+        console.warn('Failed to sync Firebase -> Supabase for', collectionName, err?.message || err);
+      }
     } catch (error) {
       firebaseEnabled = false;
       console.warn('Firebase saveCollectionToFirestore failed:', error.message);
@@ -1214,24 +1257,68 @@ async function saveCollectionToFirestore(collectionName, items) {
   try {
     console.log(`Falling back to Supabase for ${collectionName}`);
     const payload = mapCollectionToDb(collectionName, items);
-    const upsertOp = supabaseClient
-      .from(collectionName)
-      .upsert(payload, { onConflict: 'id' });
-
     let result;
-    if (typeof upsertOp.select === 'function') {
-      result = await upsertOp.select();
-    } else if (typeof upsertOp.then === 'function') {
-      result = await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
-    } else {
-      result = await upsertOp;
+    let saveError = null;
+
+    if (supabaseClient && typeof supabaseClient.from === 'function') {
+      try {
+        const upsertOp = supabaseClient
+          .from(collectionName)
+          .upsert(payload, { onConflict: 'id' });
+
+        if (typeof upsertOp.select === 'function') {
+          result = await upsertOp.select();
+        } else if (typeof upsertOp.then === 'function') {
+          result = await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
+        } else {
+          result = await upsertOp;
+        }
+
+        saveError = result?.error || null;
+        if (!saveError) {
+          console.log(`Successfully saved ${collectionName} to Supabase`);
+          if (collectionName === 'categories') {
+            try {
+              state.categories = await loadCollectionFromFirestore('categories');
+              renderCategories();
+              renderCategoryPreview();
+              populateCategorySelect();
+            } catch (reloadError) {
+              console.warn('Failed to reload categories after saving:', reloadError?.message || reloadError);
+            }
+          }
+          return;
+        }
+      } catch (error) {
+        saveError = error;
+        console.warn(`Supabase client upsert failed for ${collectionName}, trying REST fallback:`, error?.message || error);
+      }
     }
 
-    const error = result?.error;
-    if (error) {
-      console.error(`Error saving ${collectionName} to Supabase:`, error);
-    } else {
-      console.log(`Successfully saved ${collectionName} to Supabase`);
+    try {
+      const payloadGroups = splitPayloadByKeySet(payload);
+      for (const group of payloadGroups) {
+        const groupHasId = group.length > 0 && Object.prototype.hasOwnProperty.call(group[0], 'id');
+        const url = groupHasId ? `${collectionName}?on_conflict=id` : collectionName;
+        const restResult = await directSupabaseRequest(url, 'POST', group);
+        console.log(`Successfully saved ${collectionName} to Supabase via REST fallback`, restResult);
+      }
+      if (collectionName === 'categories') {
+        try {
+          state.categories = await loadCollectionFromFirestore('categories');
+          renderCategories();
+          renderCategoryPreview();
+          populateCategorySelect();
+        } catch (reloadError) {
+          console.warn('Failed to reload categories after saving:', reloadError?.message || reloadError);
+        }
+      }
+      return;
+    } catch (restError) {
+      console.error(`Error saving ${collectionName} to Supabase via REST fallback:`, restError);
+      if (saveError) {
+        console.error(`Original Supabase client error:`, saveError);
+      }
     }
   } catch (error) {
     console.error(`Error saving ${collectionName} to Supabase:`, error);
@@ -1550,13 +1637,14 @@ function resetCategoryForm() {
 
 async function saveCategories() {
   try {
-    saveCollectionToFirestore('categories', state.categories);
+    await saveCollectionToFirestore('categories', state.categories);
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
       alert('حجم البيانات كبير جداً. جاري حفظ الفئات بدون الصور لتوفير المساحة.');
       const categoriesWithoutImages = state.categories.map(cat => ({ ...cat, img: null }));
-      saveCollectionToFirestore('categories', categoriesWithoutImages);
+      await saveCollectionToFirestore('categories', categoriesWithoutImages);
     } else {
+      console.error('خطأ أثناء حفظ الفئات:', e);
       throw e;
     }
   }
@@ -1569,13 +1657,13 @@ async function addOrUpdateCategory(event) {
   const file = fileInput.files[0];
   if (!name) return;
 
-  const applyCategoryUpdate = (imageData) => {
+  const applyCategoryUpdate = async (imageData) => {
     if (categoryEditId) {
       const category = state.categories.find(item => item.id === categoryEditId);
       if (!category) return;
       category.name = name;
       if (imageData) category.img = imageData;
-      saveCategories();
+      await saveCategories();
       renderCategories();
       renderCategoryPreview();
       resetCategoryForm();
@@ -1584,12 +1672,11 @@ async function addOrUpdateCategory(event) {
     }
 
     if (!imageData) {
-      alert('من فضلك اختر صورة أو أيقونة للفئة');
-      return;
+      imageData = 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=400&q=80';
     }
 
-    state.categories.unshift({ id: Date.now(), name, img: imageData });
-    saveCategories();
+    state.categories.unshift({ id: -Date.now(), name, img: imageData });
+    await saveCategories();
     renderCategories();
     renderCategoryPreview();
     resetCategoryForm();
@@ -1597,39 +1684,48 @@ async function addOrUpdateCategory(event) {
   };
 
   if (file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const maxWidth = 200;
-        const maxHeight = 200;
-        let { width, height } = img;
+    await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const maxWidth = 200;
+            const maxHeight = 200;
+            let { width, height } = img;
 
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
 
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedData = canvas.toDataURL('image/jpeg', 0.7);
-        applyCategoryUpdate(compressedData);
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedData = canvas.toDataURL('image/jpeg', 0.7);
+            await applyCategoryUpdate(compressedData);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        img.onerror = reject;
+        img.src = reader.result;
       };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   } else {
-    applyCategoryUpdate(null);
+    await applyCategoryUpdate(null);
   }
 }
 
@@ -2398,30 +2494,48 @@ function fillSocialForm() {
 async function loadRemoteData() {
   if (!navigator.onLine) {
     console.warn('Navigator reports offline — attempting remote data load anyway (some devices mis-report network).');
-    // continue attempting loads even if navigator reports offline; some devices
-    // incorrectly set this flag or block preliminary requests.
   }
-  await initFirebaseClient();
-  await initSupabaseClient();
-  try {
-    const testRes = await testSupabaseConnection();
-    console.log('Supabase connection test:', testRes);
-  } catch (e) {
-    console.warn('Supabase connection test failed:', e);
-  }
-  console.log('Clients initialized, loading remote data...');
 
-  const savedSocial = await loadSocialSettings();
-  console.log('Loaded social settings:', savedSocial);
-  if (savedSocial) {
-    state.social = savedSocial;
+  // Skip Firebase initialization entirely in the current build.
+  await initSupabaseClient();
+  console.log('Supabase client initialized, loading remote data...');
+
+  const categoriesPromise = loadCollectionFromFirestore('categories');
+  const productsPromise = loadCollectionFromFirestore('products');
+  const couponsPromise = loadCollectionFromFirestore('coupons');
+  const ordersPromise = loadCollectionFromFirestore('orders');
+  const socialPromise = loadSocialSettings();
+  const cartPromise = loadFromFirestore('settings', 'cart');
+  const reviewImagesPromise = loadFromFirestore('settings', 'review_images');
+  const shippingRatesPromise = loadFromFirestore('settings', 'shipping_rates');
+
+  const [
+    savedCategoriesResult,
+    savedProductsResult,
+    savedCouponsResult,
+    savedOrdersResult,
+    savedSocialResult,
+    savedCartResult,
+    savedReviewImagesResult,
+    savedShippingRatesResult
+  ] = await Promise.allSettled([
+    categoriesPromise,
+    productsPromise,
+    couponsPromise,
+    ordersPromise,
+    socialPromise,
+    cartPromise,
+    reviewImagesPromise,
+    shippingRatesPromise
+  ]);
+
+  if (savedSocialResult.status === 'fulfilled' && savedSocialResult.value) {
+    state.social = savedSocialResult.value;
     updateSocialLinksDisplay();
   }
 
-  const savedProducts = await loadCollectionFromFirestore('products');
-  console.log('Loaded products from Supabase:', savedProducts.length, 'products');
-  if (savedProducts.length > 0) {
-    state.products = savedProducts;
+  if (savedProductsResult.status === 'fulfilled' && Array.isArray(savedProductsResult.value) && savedProductsResult.value.length > 0) {
+    state.products = savedProductsResult.value;
     state.products.forEach(product => {
       if (!product.category) product.category = 'أخرى';
       if (!product.gallery) product.gallery = [];
@@ -2430,18 +2544,14 @@ async function loadRemoteData() {
     renderProducts();
   }
 
-  const savedCategories = await loadCollectionFromFirestore('categories');
-  console.log('Loaded categories from Supabase:', savedCategories.length, 'categories');
-  if (savedCategories.length > 0) {
-    state.categories = savedCategories;
+  if (savedCategoriesResult.status === 'fulfilled' && Array.isArray(savedCategoriesResult.value) && savedCategoriesResult.value.length > 0) {
+    state.categories = savedCategoriesResult.value;
     renderCategories();
     populateCategorySelect();
   }
 
-  const savedOrders = await loadCollectionFromFirestore('orders');
-  console.log('Loaded orders from Supabase:', savedOrders.length, 'orders');
-  if (savedOrders.length > 0) {
-    state.orders = savedOrders;
+  if (savedOrdersResult.status === 'fulfilled' && Array.isArray(savedOrdersResult.value) && savedOrdersResult.value.length > 0) {
+    state.orders = savedOrdersResult.value;
     normalizeOrderNumbers();
     saveCollectionToFirestore('orders', state.orders);
     renderOrders();
@@ -2449,31 +2559,23 @@ async function loadRemoteData() {
     adminOrderBadge.textContent = state.orders.length;
   }
 
-  const savedCart = await loadFromFirestore('settings', 'cart');
-  console.log('Loaded cart from Supabase:', savedCart);
-  if (savedCart) {
-    state.cart = savedCart.items || [];
+  if (savedCartResult.status === 'fulfilled' && savedCartResult.value) {
+    state.cart = savedCartResult.value.items || [];
     renderCart();
   }
 
-  const savedReviewImages = await loadFromFirestore('settings', 'review_images');
-  console.log('Loaded review images from Supabase:', savedReviewImages);
-  if (savedReviewImages) {
-    state.reviewImages = savedReviewImages.images || [];
+  if (savedReviewImagesResult.status === 'fulfilled' && savedReviewImagesResult.value) {
+    state.reviewImages = savedReviewImagesResult.value.images || [];
     renderReviewImages();
     renderReviewImagesPreview();
   }
 
-  const savedShippingRates = await loadFromFirestore('settings', 'shipping_rates');
-  console.log('Loaded shipping rates from Supabase:', savedShippingRates);
-  if (savedShippingRates) {
-    state.shippingRates = { ...state.shippingRates, ...savedShippingRates.rates };
+  if (savedShippingRatesResult.status === 'fulfilled' && savedShippingRatesResult.value) {
+    state.shippingRates = { ...state.shippingRates, ...savedShippingRatesResult.value.rates };
   }
 
-  const savedCoupons = await loadCollectionFromFirestore('coupons');
-  console.log('Loaded coupons from Supabase:', savedCoupons.length, 'coupons');
-  if (savedCoupons.length > 0) {
-    state.coupons = savedCoupons;
+  if (savedCouponsResult.status === 'fulfilled' && Array.isArray(savedCouponsResult.value) && savedCouponsResult.value.length > 0) {
+    state.coupons = savedCouponsResult.value;
   }
 
   initRealtimeSubscriptions();
@@ -2565,6 +2667,17 @@ window.buyNow = buyNow;
 window.renderShippingRates = renderShippingRates;
 window.addNewGovernorate = addNewGovernorate;
 window.saveShippingRates = saveShippingRates;
+
+const bindCategoryForm = () => {
+  const categoryForm = document.getElementById('category-form');
+  if (categoryForm && !categoryForm.dataset.bound) {
+    categoryForm.addEventListener('submit', addOrUpdateCategory);
+    categoryForm.dataset.bound = 'true';
+  }
+};
+
+window.addEventListener('DOMContentLoaded', bindCategoryForm);
+bindCategoryForm();
 window.switchAuthTab = switchAuthTab;
 window.loginUser = loginUser;
 window.registerUser = registerUser;
