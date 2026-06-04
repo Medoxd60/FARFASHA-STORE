@@ -1209,6 +1209,19 @@ h1, h2, h3, h4, h5, h6 {
     min-width: 0;
   }
 
+
+  @media (max-width: 460px) {
+  .review-grid {
+    grid-auto-columns: 100vw;
+    gap: 18px;
+  }
+
+  .review-grid > .review-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
+  }
+
   #review-images-preview .review-card-preview,
   .review-card-preview {
     min-width: 0;
