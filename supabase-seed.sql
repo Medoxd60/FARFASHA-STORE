@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS products (
   id bigserial primary key,
   name text not null,
-  price numeric not null,
+  price numeric not null, 
   original_price numeric,
   discount int,
   description text,
@@ -48,9 +48,14 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_cost numeric,
   total numeric,
   items jsonb not null,
+  user_id text,
+  user_email text,
   created_at timestamptz default now(),
   status text default 'new'
 );
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_id text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_email text;
 
 CREATE TABLE IF NOT EXISTS settings (
   id bigserial primary key,
