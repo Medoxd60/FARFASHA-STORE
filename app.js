@@ -56,6 +56,7 @@ const adminTabButtons = document.querySelectorAll('.tab-btn');
 const adminOrderBadge = document.getElementById('admin-order-badge');
 const reviewImagesGrid = document.getElementById('review-images-grid');
 const reviewImagesPreview = document.getElementById('review-images-preview');
+const sliderImagesPreview = document.getElementById('slider-images-preview');
 const userOrdersList = document.getElementById('user-orders-list');
 
 let state = {
@@ -68,6 +69,7 @@ let state = {
     facebook: '#'
   },
   reviewImages: [],
+  sliderImages: [],
   categories: [],
   shippingRates: {
     'القاهرة': 0,
@@ -110,6 +112,8 @@ let adminProductPage = 1;
 let adminOrderSearch = '';
 let mainImageData = null;
 let galleryImagesData = [];
+let homeSliderIndex = 0;
+let homeSliderTimer = null;
 
 const SUPABASE_URL = 'https://spvrkohlqflsyjiexcvo.supabase.co';
 const SUPABASE_PUBLIC_KEY = 'sb_publishable_hFZTx_2ZRGoWv93qFMnuRw_G_WNueVe';
@@ -2301,6 +2305,137 @@ function addReviewImage(event) {
   reader.readAsDataURL(file);
 }
 
+function previewSliderImages(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  const preview = sliderImagesPreview;
+  if (!preview) return;
+
+  files.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      state.sliderImages.unshift({ src: reader.result, selected: true });
+      saveSliderImages();
+      renderSliderImages();
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function renderSliderImages() {
+  if (!sliderImagesPreview) return;
+  const normalizedImages = state.sliderImages.map(normalizeSliderImage).filter(Boolean);
+  state.sliderImages = normalizedImages;
+  let html = '';
+  // Add-card for uploading
+  html += `<article class="slider-image-add" onclick="openSliderImagePicker()" role="button" aria-label="أضف صورة للسلايدر"><div class="slider-add-inner">+</div></article>`;
+  if (normalizedImages.length) {
+    html += normalizedImages.map((image, index) => `
+      <article class="slider-image-card ${image.selected ? 'selected' : ''}">
+        <button type="button" class="slider-image-select ${image.selected ? 'active' : ''}" onclick="toggleSliderImageSelection(${index})" aria-label="اختيار الصورة"></button>
+        <button type="button" class="slider-image-delete" onclick="removeSliderImage(${index})" aria-label="حذف الصورة">×</button>
+        <img src="${image.src}" alt="صورة السلايدر ${index + 1}" loading="lazy">
+      </article>
+    `).join('');
+  } else {
+    html += `<p class="card-detail" style="grid-column: 1 / -1; text-align:center;">لم تتم إضافة صور للسلايدر بعد.</p>`;
+  }
+  sliderImagesPreview.innerHTML = html;
+  renderHomeSlider();
+}
+
+function openSliderImagePicker() {
+  const input = document.getElementById('slider-image-input');
+  if (input) input.click();
+}
+
+function normalizeSliderImage(image) {
+  if (!image) return null;
+  if (typeof image === 'string') {
+    return { src: image, selected: true };
+  }
+  return {
+    src: image.src || '',
+    selected: Boolean(image.selected)
+  };
+}
+
+function renderHomeSlider() {
+  const slider = document.getElementById('home-slider');
+  if (!slider) return;
+  const normalizedImages = state.sliderImages.map(normalizeSliderImage).filter(Boolean);
+  let selectedImages = normalizedImages.filter(img => img.selected === true);
+  if (!selectedImages.length) {
+    selectedImages = normalizedImages;
+  }
+
+  if (!selectedImages.length) {
+    slider.innerHTML = `<div class="home-slider-empty">لم يتم اختيار صور للسلايدر بعد. اختر الصور المميزة بعلامة الصح في لوحة التحكم.</div>`;
+    if (homeSliderTimer) {
+      clearInterval(homeSliderTimer);
+      homeSliderTimer = null;
+    }
+    return;
+  }
+
+  homeSliderIndex = Number.isFinite(homeSliderIndex) ? homeSliderIndex : 0;
+  homeSliderIndex = homeSliderIndex % selectedImages.length;
+  if (homeSliderIndex < 0) homeSliderIndex = 0;
+
+  slider.innerHTML = selectedImages.map((image, index) => `
+    <div class="home-slide${index === homeSliderIndex ? ' active' : ''}">
+      <img src="${image.src}" alt="صورة سلايدر ${index + 1}">
+    </div>
+  `).join('');
+
+  const activeSlide = slider.querySelector('.home-slide.active');
+  if (!activeSlide) {
+    const firstSlide = slider.querySelector('.home-slide');
+    if (firstSlide) firstSlide.classList.add('active');
+    homeSliderIndex = 0;
+  }
+
+  startHomeSliderAutoPlay(selectedImages.length);
+}
+
+function startHomeSliderAutoPlay(slideCount) {
+  if (homeSliderTimer) {
+    clearInterval(homeSliderTimer);
+  }
+  if (slideCount < 2) return;
+  homeSliderTimer = setInterval(() => {
+    homeSliderIndex = (homeSliderIndex + 1) % slideCount;
+    const slides = document.querySelectorAll('#home-slider .home-slide');
+    slides.forEach((slide, index) => slide.classList.toggle('active', index === homeSliderIndex));
+  }, 4200);
+}
+
+function removeSliderImage(index) {
+  state.sliderImages.splice(index, 1);
+  saveSliderImages();
+  renderSliderImages();
+}
+
+function toggleSliderImageSelection(index) {
+  let image = state.sliderImages[index];
+  if (!image) return;
+  if (typeof image === 'string') {
+    image = { src: image, selected: true };
+    state.sliderImages[index] = image;
+  } else if (image.selected !== undefined) {
+    image.selected = !image.selected;
+  } else {
+    image.selected = true;
+  }
+  saveSliderImages();
+  renderSliderImages();
+}
+
+async function saveSliderImages() {
+  await saveToFirestore('settings', 'slider_images', { images: state.sliderImages });
+}
+
 function renderDiscountedProducts() {
   if (!discountedProductsGrid) return;
   const discounted = state.products.filter(product => product.discount && product.available !== false);
@@ -2841,6 +2976,10 @@ function loginAdmin(event) {
     adminPanel.classList.remove('hidden');
     adminError.textContent = '';
     setSection('admin');
+    const activeAdminTab = document.querySelector('.tab-btn.active');
+    if (activeAdminTab) {
+      switchAdminTab({ currentTarget: activeAdminTab });
+    }
   } else {
     adminError.textContent = 'كلمة المرور غلط. جرب تاني.';
   }
@@ -2922,6 +3061,19 @@ function switchAdminTab(event) {
   const target = event.currentTarget.dataset.tab;
   adminTabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === target));
   document.querySelectorAll('.admin-tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.dataset.tab !== target));
+  // Only render or keep the review images preview when reviews tab is active
+  try {
+    if (typeof reviewImagesPreview !== 'undefined' && reviewImagesPreview) {
+      if (target === 'reviews') {
+        renderReviewImagesPreview();
+      } else {
+        // clear preview when leaving reviews tab to avoid showing it across other tabs
+        reviewImagesPreview.innerHTML = '';
+      }
+    }
+  } catch (e) {
+    console.error('Error updating review preview on tab switch', e);
+  }
   if (target === 'social') {
     fillSocialForm();
   }
@@ -2983,6 +3135,7 @@ async function loadRemoteData() {
   const socialPromise = loadSocialSettings();
   const cartPromise = loadFromFirestore('settings', 'cart');
   const reviewImagesPromise = loadFromFirestore('settings', 'review_images');
+  const sliderImagesPromise = loadFromFirestore('settings', 'slider_images');
   const shippingRatesPromise = loadFromFirestore('settings', 'shipping_rates');
 
   categoriesPromise.then(savedCategoriesResult => {
@@ -3004,6 +3157,10 @@ async function loadRemoteData() {
         if (product.available === undefined) product.available = true;
       });
       renderProducts();
+      const activeAdminTab = document.querySelector('.tab-btn.active');
+      if (adminPanel && !adminPanel.classList.contains('hidden') && activeAdminTab?.dataset.tab === 'products') {
+        renderAdminProducts(adminProductSearch, adminProductPage);
+      }
     }
   }).catch(err => {
     console.warn('Failed to load product preview:', err?.message || err);
@@ -3045,6 +3202,10 @@ async function loadRemoteData() {
           if (product.available === undefined) product.available = true;
         });
         renderProducts();
+        const activeAdminTab = document.querySelector('.tab-btn.active');
+        if (adminPanel && !adminPanel.classList.contains('hidden') && activeAdminTab?.dataset.tab === 'products') {
+          renderAdminProducts(adminProductSearch, adminProductPage);
+        }
       }
     }
   }).catch(err => {
@@ -3094,6 +3255,15 @@ async function loadRemoteData() {
     console.warn('Failed to load review images:', err?.message || err);
   });
 
+  sliderImagesPromise.then(savedSliderImagesResult => {
+    if (savedSliderImagesResult) {
+      state.sliderImages = (savedSliderImagesResult.images || []).map(normalizeSliderImage).filter(Boolean);
+      renderSliderImages();
+    }
+  }).catch(err => {
+    console.warn('Failed to load slider images:', err?.message || err);
+  });
+
   shippingRatesPromise.then(savedShippingRatesResult => {
     if (savedShippingRatesResult) {
       const rates = savedShippingRatesResult.rates || savedShippingRatesResult.data?.rates || savedShippingRatesResult.value?.rates || savedShippingRatesResult;
@@ -3124,6 +3294,7 @@ async function loadRemoteData() {
     socialPromise,
     cartPromise,
     reviewImagesPromise,
+    sliderImagesPromise,
     shippingRatesPromise
   ]).then(() => {
     initRealtimeSubscriptions();
@@ -3138,6 +3309,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderCart();
     renderReviewImages();
     renderReviewImagesPreview();
+    renderSliderImages();
     renderOrders();
     renderCategories();
     populateCategorySelect();
@@ -3205,6 +3377,10 @@ window.switchAdminTab = switchAdminTab;
 window.updateSocialLinks = updateSocialLinks;
 window.addReviewImage = addReviewImage;
 window.deleteReviewImage = deleteReviewImage;
+window.previewSliderImages = previewSliderImages;
+window.toggleSliderImageSelection = toggleSliderImageSelection;
+window.removeSliderImage = removeSliderImage;
+window.openSliderImagePicker = openSliderImagePicker;
 window.addOrUpdateCategory = addOrUpdateCategory;
 window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
