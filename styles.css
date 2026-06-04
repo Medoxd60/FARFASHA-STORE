@@ -1217,9 +1217,9 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .review-grid > .review-card {
-    width: 100%;
-    max-width: 100%;
-    min-width: 100%;
+    width: 90%;
+    max-width: 90%;
+    min-width: 90%;
   }
 
   #review-images-preview .review-card-preview,
