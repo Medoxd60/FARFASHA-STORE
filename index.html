@@ -236,6 +236,7 @@
           <h3>بيانات العميل</h3>
           <div class="form-row">
             <label>الاسم الكامل<input name="name" type="text" placeholder="اكتب اسمك" required></label>
+            <label>البريد الإلكتروني<input name="email" type="email" placeholder="example@email.com" required></label>
             <label>رقم التليفون<input name="phone" type="tel" placeholder="010XXXXXXXX" required></label>
             <label>المحافظة<select id="checkout-governorate" name="governorate" onchange="buildSummary()" required></select></label>
             <label>العنوان<textarea name="address" placeholder="العنوان بالكامل" required></textarea></label>
@@ -345,7 +346,7 @@
         <div class="admin-tab-panel hidden" data-tab="categories">
           <article class="form-card">
             <h3 id="category-form-title">إضافة فئة جديدة</h3>
-            <form id="category-form" onsubmit="addOrUpdateCategory(event)">
+            <form id="category-form">
               <label>اسم الفئة<input id="category-name" type="text" placeholder="اسم الفئة" required></label>
               <label>اختر صورة أو أيقونة من الجهاز<input id="category-img-input" type="file" accept="image/*"></label>
               <button class="btn" type="submit" id="category-submit-btn">إضافة فئة</button>
@@ -486,11 +487,35 @@
         </div>
         <div id="auth-message" class="alert hidden"></div>
         <div id="auth-profile-panel" class="user-profile hidden">
-          <div class="user-avatar" id="profile-avatar">م</div>
-          <div class="user-info">
-            <h3 id="profile-name">حساب المستخدم</h3>
-            <p id="profile-email">user@example.com</p>
-            <p id="profile-note">هذه الصفحة الشخصية ستُجهز لاحقًا. يمكنك تسجيل الخروج أو العودة لاحقًا.</p>
+          <div class="profile-header">
+            <div class="user-avatar" id="profile-avatar">م</div>
+            <div class="user-info">
+              <h3 id="profile-name">حساب المستخدم</h3>
+              <p id="profile-email">user@example.com</p>
+              <p id="profile-note">تحكم في بيانات حسابك الشخصي من هنا.</p>
+            </div>
+          </div>
+          <div class="profile-tabs">
+            <button type="button" class="profile-tab active" data-tab="info" onclick="switchProfileTab('info')">معلوماتي</button>
+            <button type="button" class="profile-tab" data-tab="orders" onclick="switchProfileTab('orders')">طلباتي</button>
+          </div>
+          <div class="profile-panel active" data-panel="info">
+            <form id="profile-form" class="profile-form" onsubmit="saveUserProfile(event)">
+              <label>الاسم الكامل
+                <input id="profile-fullname" type="text" placeholder="اسمك الكامل" required>
+              </label>
+              <label>البريد الإلكتروني
+                <input id="profile-email-input" type="email" readonly>
+              </label>
+              <label>رقم الهاتف
+                <input id="profile-phone" type="tel" placeholder="رقم الهاتف">
+              </label>
+              <button class="btn" type="submit">حفظ التغييرات</button>
+              <div id="profile-message" class="alert hidden"></div>
+            </form>
+          </div>
+          <div class="profile-panel hidden" data-panel="orders">
+            <div id="user-orders-list" class="user-orders-list"></div>
           </div>
           <button class="logout-btn" type="button" onclick="logoutUser()">تسجيل خروج</button>
         </div>
@@ -528,26 +553,6 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDCCdsQVz4OFS2XVRfuh-6c8xkamN_7uTc",
-      authDomain: "farfasha-store.firebaseapp.com",
-      projectId: "farfasha-store",
-      storageBucket: "farfasha-store.firebasestorage.app",
-      messagingSenderId: "607506266978",
-      appId: "1:607506266978:web:46217b48384f4f661dca3b",
-      measurementId: "G-1MN8P3734F"
-    };
-    firebase.initializeApp(firebaseConfig);
-    window.firebaseApp = firebase.app();
-    window.firebaseAuth = firebase.auth();
-    window.firebaseDB = firebase.firestore();
-    window.firebaseStorage = firebase.storage();
-  </script>
   <script src="app.js"></script>
 </body>
 </html>
