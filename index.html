@@ -20,26 +20,24 @@
 
   <main>
     <section id="section-home" class="section-page">
-      <div class="section-title">
-        <div>
-          <h2>FARFASHA</h2>
-        </div>
+      <div class="hero-slider">
+        <div class="home-slider" id="home-slider" aria-label="سلايدر صور FARFASHA"></div>
       </div>
       <div class="hero">
         <div class="hero-copy">
           <h1>خلي كل تجربة شراء تصبح فرفشة</h1>
-          <p>استكشف مجموعتنا المختارة من اللانجيري و المنتجات الخاصة لتجربةاكثر اثارة و أناقة.</p>
+          <p>استكشف مجموعتنا المختارة من اللانجيري و المنتجات الخاصة لتجربة اكثر اثارة و أناقة.</p>
           <div class="panel">
             <button class="btn" onclick="window.location.hash='#products'">ابدأ التسوق</button>
           </div>
         </div>
+        
       </div>
 
       <div class="features-grid">
         <div class="feature-box feature-highlight">
           <h2>تحذير </h2>
           <p>جميع منتجاتنا مخصصه للمتزوجين فقط ويحظر استخدامها او بيعها لغير المتزوجين و من يخالف ذلك يتحمل وزره امام الله عز وجل . اللهم بلغت اللهم فاشهد</p>
-        
         </div>
       </div>
 
@@ -285,6 +283,7 @@
           <button type="button" class="tab-btn" data-tab="orders" onclick="switchAdminTab(event)">طلبات العملاء <span id="admin-order-badge" style="margin-left:8px; color: var(--accent)">0</span></button>
           <button type="button" class="tab-btn" data-tab="categories" onclick="switchAdminTab(event)">فئات المنتجات</button>
           <button type="button" class="tab-btn" data-tab="social" onclick="switchAdminTab(event)">تواصل معنا</button>
+          <button type="button" class="tab-btn" data-tab="slider" onclick="switchAdminTab(event)">Slider</button>
           <button type="button" class="tab-btn" data-tab="reviews" onclick="switchAdminTab(event)">آراء العملاء</button>
           <button type="button" class="tab-btn" data-tab="shipping" onclick="switchAdminTab(event)">الشحن</button>
           <button type="button" class="tab-btn" data-tab="coupons" onclick="switchAdminTab(event)">الكوبونات</button>
@@ -366,6 +365,14 @@
             </form>
           </article>
         </div>
+        <div class="admin-tab-panel hidden" data-tab="slider">
+          <article class="form-card">
+            <h3>Slider الصور</h3>
+            <p style="margin-bottom: 16px; color: var(--text-muted);">أضف صور من جهازك للسلايدر، ثم اختر بعض الصور عبر المربع العلوي.</p>
+            <input id="slider-image-input" type="file" accept="image/*" multiple onchange="previewSliderImages(event)" style="display:none">
+            <div id="slider-images-preview" class="slider-images-grid" style="margin-top:18px;"></div>
+          </article>
+        </div>
         <div class="admin-tab-panel hidden" data-tab="reviews">
           <article class="form-card">
             <h3>آراء العملاء</h3>
@@ -374,8 +381,6 @@
               <div class="review-meta-grid">
                 <label class="review-input-label">اسم العميل<input id="reviewer-name" type="text" placeholder="اكتب اسم العميل"></label>
                 <div class="review-gender-field">
-                  <span>النوع</span>
-                  <div class="gender-options">
                     <label class="gender-option">
                       <input type="radio" name="reviewer-gender" value="male" checked>
                       <span class="gender-circle">
