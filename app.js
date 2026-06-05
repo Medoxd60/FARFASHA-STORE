@@ -2647,7 +2647,16 @@ function renderOrders(search = '') {
     return term.includes(adminOrderSearch);
   });
 
-  ordersList.innerHTML = filtered.length ? filtered.map(order => {
+  const sortedOrders = [...filtered].sort((a, b) => {
+    const aDate = new Date(a.createdAt || a.created_at || a.date || '');
+    const bDate = new Date(b.createdAt || b.created_at || b.date || '');
+    if (!Number.isNaN(aDate.getTime()) && !Number.isNaN(bDate.getTime())) {
+      return bDate - aDate;
+    }
+    return (b.id || 0) - (a.id || 0);
+  });
+
+  ordersList.innerHTML = sortedOrders.length ? sortedOrders.map(order => {
     const status = order.status || 'new';
     const statusClass = `status-${status}`;
     const governorate = order.governorate || 'غير محدد';
@@ -2675,7 +2684,11 @@ function renderOrders(search = '') {
         ${order.coupon ? `<p class="order-meta-row">كوبون: ${order.coupon} - خصم ${formatPrice(order.couponDiscount || 0)}</p>` : ''}
         <p class="order-notes">${notesText}</p>
         <div class="product-meta">
-          <span class="price-tag">${formatPrice(order.total)}</span>
+          <span class="price-tag">
+            <span class="price-main">${formatPrice(order.total)}</span>
+            ${order.coupon ? `<span class="price-discount">خصم ${formatPrice(order.couponDiscount || 0)}</span>` : ''}
+            <span class="price-shipping">شحن ${formatPrice(order.shippingCost || 0)}</span>
+          </span>
           <button class="secondary-btn" onclick="toggleOrderDetails(${order.id})">عرض التفاصيل</button>
         </div>
         <div class="order-details hidden" id="order-detail-${order.id}">
@@ -3318,6 +3331,7 @@ window.addEventListener('DOMContentLoaded', () => {
     updateSocialLinksDisplay();
     restoreAuthState();
     if (!window.location.hash) window.location.hash = '#home';
+    restoreTheme();
     handleHashChange();
 
     loadRemoteData();
@@ -3404,6 +3418,35 @@ const bindCategoryForm = () => {
     categoryForm.dataset.bound = 'true';
   }
 };
+
+const THEME_STORAGE_KEY = 'farfashaTheme';
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
+function applyTheme(theme) {
+  const darkMode = theme === 'dark';
+  document.body.classList.toggle('theme-dark', darkMode);
+  document.body.classList.toggle('theme-light', !darkMode);
+  if (themeToggleBtn) {
+    themeToggleBtn.textContent = darkMode ? '☀️ الوضع النهاري' : '🌙 الوضع الليلي';
+  }
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+function toggleTheme() {
+  const isDark = document.body.classList.contains('theme-dark');
+  applyTheme(isDark ? 'light' : 'dark');
+}
+
+function restoreTheme() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(savedTheme === 'dark' || (!savedTheme && prefersDark) ? 'dark' : 'light');
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', toggleTheme);
+  themeToggleBtn.textContent = '🌙 الوضع الليلي';
+}
 
 window.addEventListener('DOMContentLoaded', bindCategoryForm);
 bindCategoryForm();
