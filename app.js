@@ -3432,7 +3432,8 @@ function applyTheme(theme) {
   localStorage.setItem(THEME_STORAGE_KEY, theme);
 }
 
-function toggleTheme() {
+function toggleTheme(e) {
+  if (e) e.preventDefault();
   const isDark = document.body.classList.contains('theme-dark');
   applyTheme(isDark ? 'light' : 'dark');
 }
