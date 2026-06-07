@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "36715762272",
+    "project_id": "farfasha-notifications",
+    "storage_bucket": "farfasha-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:36715762272:android:5a7ee9e9782593b2bbe905",
+        "android_client_info": {
+          "package_name": "com.farfasha.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFqNfX_S8nw-tJh6g2GcUX4Mz_ykfvIek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

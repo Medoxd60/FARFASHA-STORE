@@ -24,7 +24,22 @@ function toggleMobileMenu() {
   mobileMenuToggle.setAttribute('aria-expanded', opened ? 'true' : 'false');
 }
 
-navLinks.forEach(link => link.addEventListener('click', closeMobileMenu));
+navLinks.forEach(link => {
+  link.addEventListener('click', event => {
+    event.preventDefault();
+    closeMobileMenu();
+
+    const targetHash = link.getAttribute('href') || '#home';
+    const currentHash = window.location.hash || '#home';
+
+    if (currentHash === targetHash) {
+      handleHashChange();
+      return;
+    }
+
+    window.location.hash = targetHash;
+  });
+});
 if (mobileMenuToggle) mobileMenuToggle.addEventListener('click', toggleMobileMenu);
 window.addEventListener('resize', () => {
   if (window.innerWidth > 960) closeMobileMenu();
@@ -56,16 +71,11 @@ const adminTabButtons = document.querySelectorAll('.tab-btn');
 const adminOrderBadge = document.getElementById('admin-order-badge');
 const reviewImagesGrid = document.getElementById('review-images-grid');
 const reviewImagesPreview = document.getElementById('review-images-preview');
+const sliderImagesPreview = document.getElementById('slider-images-preview');
+const userOrdersList = document.getElementById('user-orders-list');
 
 let state = {
-  products: [
-    { id: 1, name: 'شنطة فانشوشة ستايل', price: 229, originalPrice: 299, discount: 23, desc: 'شنطة يدوية بتصميم عصري و خامة قوية للأيام المثالية.', img: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=800&q=80', category: 'إكسسوارات', gallery: [], available: true },
-    { id: 2, name: 'جزمة فرفشة رياضية', price: 399, originalPrice: 499, discount: 20, desc: 'جزمة خفيفة ومرنة مناسبة لكل يوم وخروجاتك بسرعة.', img: 'https://images.unsplash.com/photo-1519741491655-8c4689e2d8a5?auto=format&fit=crop&w=800&q=80', category: 'أزياء', gallery: [], available: true },
-    { id: 3, name: 'ساعة ذكية فرفاشة', price: 799, originalPrice: 999, discount: 20, desc: 'متابعة النشاط الرياضي، الإشعارات، وستايل مميز.', img: 'https://images.unsplash.com/photo-1516574187841-cb9cc2ca948b?auto=format&fit=crop&w=800&q=80', category: 'إلكترونيات', gallery: [], available: true },
-    { id: 4, name: 'طقم مجوهرات شبابية', price: 189, desc: 'سلسلة و إسورة بتفاصيل ملفتة و تصميم يناسب كل الأذواق.', img: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=800&q=80', category: 'إكسسوارات', gallery: [], available: true },
-    { id: 5, name: 'نظارة شمسية فاخرة', price: 249, desc: 'إطار أنيق وعدسات مضادة للأشعة لستايل صيفي ممتاز.', img: 'https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=800&q=80', category: 'إكسسوارات', gallery: [], available: true },
-    { id: 6, name: 'موبايل سيلفر فرفاشة', price: 2899, desc: 'هاتف حديث مع كاميرا مميزة وشاشة سينمائية.', img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80', category: 'إلكترونيات', gallery: [], available: true },
-  ],
+  products: [],
   cart: [],
   orders: [],
   social: {
@@ -74,11 +84,8 @@ let state = {
     facebook: '#'
   },
   reviewImages: [],
-  categories: [
-    { id: 1, name: 'أزياء', img: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=400&q=80' },
-    { id: 2, name: 'إلكترونيات', img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=400&q=80' },
-    { id: 3, name: 'إكسسوارات', img: 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=400&q=80' }
-  ],
+  sliderImages: [],
+  categories: [],
   shippingRates: {
     'القاهرة': 0,
     'الإسكندرية': 50,
@@ -120,6 +127,8 @@ let adminProductPage = 1;
 let adminOrderSearch = '';
 let mainImageData = null;
 let galleryImagesData = [];
+let homeSliderIndex = 0;
+let homeSliderTimer = null;
 
 const SUPABASE_URL = 'https://spvrkohlqflsyjiexcvo.supabase.co';
 const SUPABASE_PUBLIC_KEY = 'sb_publishable_hFZTx_2ZRGoWv93qFMnuRw_G_WNueVe';
@@ -162,25 +171,42 @@ class SimpleSupabaseClient {
 
   from(table) {
     return {
-      select: (columns = '*') => ({
-        eq: (column, value) => ({
+      select: (columns = '*') => {
+        const state = { columns, filters: [], order: null, limit: null };
+        const buildPath = () => {
+          const params = [];
+          params.push(`select=${state.columns}`);
+          if (state.filters.length) params.push(state.filters.join('&'));
+          if (state.order) params.push(`order=${state.order}`);
+          if (state.limit != null) params.push(`limit=${state.limit}`);
+          return `${table}?${params.join('&')}`;
+        };
+        const query = async () => {
+          const data = await this.request(buildPath());
+          return { data, error: null };
+        };
+        const queryObj = {
+          eq: (column, value) => {
+            state.filters.push(`${column}=eq.${encodeURIComponent(value)}`);
+            return queryObj;
+          },
+          order: (column, { ascending = true } = {}) => {
+            state.order = `${column}.${ascending ? 'asc' : 'desc'}`;
+            return queryObj;
+          },
+          limit: (count) => {
+            state.limit = count;
+            return queryObj;
+          },
+          then: (resolve, reject) => query().then(resolve, reject),
+          catch: (reject) => query().catch(reject),
           single: async () => {
-            const data = await this.request(`${table}?${column}=eq.${encodeURIComponent(value)}&select=${columns}`);
-            return { data: data[0] || null, error: null };
+            const result = await query();
+            return { data: Array.isArray(result.data) ? result.data[0] || null : result.data, error: null };
           }
-        }),
-        order: (column, { ascending = true } = {}) => {
-          const query = async () => {
-            const orderParam = ascending ? `${column}.asc` : `${column}.desc`;
-            const data = await this.request(`${table}?select=${columns}&order=${orderParam}`);
-            return { data, error: null };
-          };
-          return {
-            then: (resolve, reject) => query().then(resolve, reject),
-            catch: (reject) => query().catch(reject)
-          };
-        }
-      }),
+        };
+        return queryObj;
+      },
       insert: (data) => {
         const execute = async () => {
           const response = await fetch(`${this.url}/rest/v1/${table}`, {
@@ -244,6 +270,63 @@ class SimpleSupabaseClient {
           then: (resolve, reject) => execute().then(resolve, reject),
           catch: (reject) => execute().catch(reject)
         };
+      },
+      update: (data) => {
+        const execute = async (filter) => {
+          const url = filter ? `${this.url}/rest/v1/${table}?${filter}` : `${this.url}/rest/v1/${table}`;
+          const response = await fetch(url, {
+            method: 'PATCH',
+            headers: {
+              'apikey': this.key,
+              'Authorization': `Bearer ${this.key}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(data)
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const result = await response.json();
+          return { data: result, error: null };
+        };
+        return {
+          eq: (column, value) => {
+            const promise = execute(`${column}=eq.${encodeURIComponent(value)}`);
+            return {
+              then: (resolve, reject) => promise.then(result => resolve({ data: result, error: null }), reject),
+              catch: (reject) => promise.catch(reject)
+            };
+          }
+        };
+      },
+      delete: () => {
+        const execute = async (filter) => {
+          const url = filter ? `${this.url}/rest/v1/${table}?${filter}` : `${this.url}/rest/v1/${table}`;
+          const response = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+              'apikey': this.key,
+              'Authorization': `Bearer ${this.key}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            }
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const result = await response.json();
+          return { data: result, error: null };
+        };
+        return {
+          eq: (column, value) => {
+            const promise = execute(`${column}=eq.${encodeURIComponent(value)}`);
+            return {
+              then: (resolve, reject) => promise.then(result => resolve({ data: result, error: null }), reject),
+              catch: (reject) => promise.catch(reject)
+            };
+          }
+        };
       }
     };
   }
@@ -263,24 +346,13 @@ async function initFirebaseClient() {
     firebaseEnabled = true;
     console.log('Firebase client initialized');
 
+    // Do not enable multi-tab persistence or anonymous auth by default.
+    // This avoids extra network calls and timeout errors in environments
+    // where Firebase access is blocked or not required.
     if (window.firebase && window.firebase.firestore && typeof window.firebase.firestore === 'function') {
-      try {
-        await window.firebase.firestore().enablePersistence({ synchronizeTabs: true });
-        console.log('Firebase offline persistence enabled');
-      } catch (error) {
-        console.warn('Firebase persistence not enabled:', error.message);
-      }
+      console.log('Skipping Firebase offline persistence to avoid compatibility/network errors');
     }
 
-    if (firebaseAuth && !firebaseAuth.currentUser) {
-      try {
-        await firebaseAuth.signInAnonymously();
-        console.log('Firebase anonymous auth succeeded');
-      } catch (error) {
-        firebaseEnabled = false;
-        console.warn('Firebase anonymous auth failed:', error.message);
-      }
-    }
     console.log('Firebase current user:', firebaseAuth ? firebaseAuth.currentUser : 'none');
   } else {
     console.warn('Firebase client not available or not ready, skipping initialization');
@@ -294,53 +366,70 @@ async function loadSupabaseScript() {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-supabase-loader]');
     if (existing) {
-      existing.addEventListener('load', resolve);
-      existing.addEventListener('error', reject);
-      return;
+      if (existing.getAttribute('data-supabase-loaded') === 'true') {
+        return resolve();
+      }
+      existing.remove();
     }
 
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0/dist/supabase.min.js';
     script.async = true;
     script.setAttribute('data-supabase-loader', 'true');
-    script.onload = () => resolve();
+    script.onload = () => {
+      script.setAttribute('data-supabase-loaded', 'true');
+      resolve();
+    };
     script.onerror = () => reject(new Error('Failed to load Supabase SDK'));
     document.head.appendChild(script);
   });
 }
 
 async function initSupabaseClient() {
-  // Try loading the Supabase SDK with a small retry loop because
-  // some devices/networks intermittently fail to load external scripts.
-  let lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      await loadSupabaseScript();
-      lastErr = null;
-      break;
-    } catch (loadError) {
-      lastErr = loadError;
-      console.warn(`Supabase SDK load attempt ${attempt + 1} failed:`, loadError?.message || loadError);
-      // small backoff before retry
-      await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
-    }
+  // Use the lightweight REST fallback immediately to avoid waiting for the SDK.
+  // The SDK is attempted in the background, but data loads should not be blocked.
+  if (!supabaseClient) {
+    supabaseClient = new SimpleSupabaseClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+    console.debug('Initialized simple Supabase client fallback for immediate data loading');
   }
 
-  if (window.supabase && typeof window.supabase.createClient === 'function') {
-    try {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
-      console.log('Supabase official client initialized', { client: supabaseClient?.constructor?.name });
-      return;
-    } catch (e) {
-      console.warn('Supabase official client create failed:', e?.message || e);
+  const tryLoadOfficialClient = async () => {
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+      try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+        console.debug('Supabase official client initialized from existing SDK', { client: supabaseClient?.constructor?.name });
+        return;
+      } catch (e) {
+        console.warn('Supabase official client create failed:', e?.message || e);
+      }
     }
-  }
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await loadSupabaseScript();
+        if (window.supabase && typeof window.supabase.createClient === 'function') {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+          console.debug('Supabase official client initialized after loading SDK', { client: supabaseClient?.constructor?.name });
+          return;
+        }
+        lastErr = new Error('Supabase SDK loaded but createClient unavailable');
+        break;
+      } catch (loadError) {
+        lastErr = loadError;
+        console.warn(`Supabase SDK load attempt ${attempt + 1} failed:`, loadError?.message || loadError);
+        await new Promise(res => setTimeout(res, 300 * (attempt + 1)));
+      }
+    }
+    if (lastErr) {
+      console.info('Supabase official client unavailable, continuing with REST fallback', lastErr?.message || lastErr);
+    }
+  };
 
-  if (lastErr) {
-    console.warn('Supabase SDK could not be loaded after retries, using REST fallback client');
+  try {
+    await tryLoadOfficialClient();
+  } catch (e) {
+    console.info('Background Supabase SDK initialization failed:', e?.message || e);
   }
-  supabaseClient = new SimpleSupabaseClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
-  console.log('Using simple Supabase client fallback', { client: supabaseClient?.constructor?.name });
 }
 
 async function testSupabaseConnection() {
@@ -375,26 +464,113 @@ async function testSupabaseConnection() {
 }
 
 function initRealtimeSubscriptions() {
-  if (!window.supabase || !supabaseClient || typeof supabaseClient.from !== 'function') {
-    return;
+  if (window.supabase && supabaseClient && typeof supabaseClient.from === 'function') {
+    const subscribeToTable = (table, handler) => {
+      try {
+        const listener = supabaseClient.from(table);
+        if (listener && typeof listener.on === 'function') {
+          listener
+            .on('*', payload => handler(payload.eventType || payload.event, payload.new || payload.record, payload.old))
+            .subscribe();
+          return;
+        }
+      } catch (error) {
+        console.warn(`Supabase realtime first path failed for ${table}:`, error);
+      }
+
+      try {
+        const channel = supabaseClient.channel(`realtime-${table}`);
+        channel.on('postgres_changes', { event: '*', schema: 'public', table }, payload => {
+          handler(payload.eventType || payload.event, payload.new || payload.record, payload.old);
+        }).subscribe();
+      } catch (error) {
+        console.warn(`Supabase realtime fallback failed for ${table}:`, error);
+      }
+    };
+
+    subscribeToTable('products', handleRealtimeProducts);
+    subscribeToTable('categories', handleRealtimeCategories);
+    subscribeToTable('coupons', handleRealtimeCoupons);
+    subscribeToTable('orders', handleRealtimeOrders);
+    subscribeToTable('settings', handleRealtimeSettings);
   }
 
-  const subscribeToTable = (table, handler) => {
+  if (firebaseEnabled && firebaseDb) {
+    initFirebaseRealtimeSubscriptions();
+  }
+}
+
+function initFirebaseRealtimeSubscriptions() {
+  if (!firebaseEnabled || !firebaseDb) return;
+
+  const listenCollection = (collectionName, callback) => {
     try {
-      supabaseClient
-        .from(table)
-        .on('*', payload => handler(payload.eventType, payload.new, payload.old))
-        .subscribe();
+      firebaseDb.collection(collectionName).onSnapshot(snapshot => {
+        const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(rows);
+      }, error => {
+        console.warn(`Firebase realtime snapshot failed for ${collectionName}:`, error.message || error);
+      });
     } catch (error) {
-      console.warn(`Realtime subscription failed for ${table}:`, error);
+      console.warn(`Firebase realtime listen failed for ${collectionName}:`, error.message || error);
     }
   };
 
-  subscribeToTable('products', handleRealtimeProducts);
-  subscribeToTable('categories', handleRealtimeCategories);
-  subscribeToTable('coupons', handleRealtimeCoupons);
-  subscribeToTable('orders', handleRealtimeOrders);
-  subscribeToTable('settings', handleRealtimeSettings);
+  const listenSettingDoc = (docId, callback) => {
+    try {
+      firebaseDb.collection('settings').doc(String(docId)).onSnapshot(snapshot => {
+        if (!snapshot.exists) return;
+        callback(snapshot.data());
+      }, error => {
+        console.warn(`Firebase realtime snapshot failed for settings/${docId}:`, error.message || error);
+      });
+    } catch (error) {
+      console.warn(`Firebase realtime listen failed for settings/${docId}:`, error.message || error);
+    }
+  };
+
+  listenCollection('products', rows => {
+    state.products = normalizeCollectionFromDb('products', rows);
+    renderProducts();
+    if (window.location.hash.startsWith('#category/')) handleHashChange();
+  });
+
+  listenCollection('categories', rows => {
+    state.categories = normalizeCollectionFromDb('categories', rows);
+    renderCategories();
+    populateCategorySelect();
+  });
+
+  listenCollection('coupons', rows => {
+    state.coupons = normalizeCollectionFromDb('coupons', rows);
+    renderCoupons(adminCouponSearch);
+  });
+
+  listenCollection('orders', rows => {
+    state.orders = normalizeCollectionFromDb('orders', rows);
+    renderOrders(adminOrderSearch);
+    orderCount.textContent = state.orders.length;
+    adminOrderBadge.textContent = state.orders.length;
+  });
+
+  listenSettingDoc('social', data => {
+    if (!data) return;
+    state.social = data;
+    updateSocialLinksDisplay();
+  });
+
+  listenSettingDoc('shipping_rates', data => {
+    if (!data || !data.rates) return;
+    state.shippingRates = { ...state.shippingRates, ...data.rates };
+    populateGovernorateOptions();
+  });
+
+  listenSettingDoc('review_images', data => {
+    if (!data || !data.images) return;
+    state.reviewImages = data.images;
+    renderReviewImages();
+    renderReviewImagesPreview();
+  });
 }
 
 function handleRealtimeProducts(eventType, newRow, oldRow) {
@@ -457,7 +633,8 @@ function handleRealtimeOrders(eventType, newRow, oldRow) {
 
 function handleRealtimeSettings(eventType, newRow, oldRow) {
   const row = newRow || oldRow;
-  if (!row || (!row.key && !row.id)) return;
+  if (!row || (!row.key && !row.id)) return;  
+  
   const rowKey = row.key || row.id;
 
   let settingsData;
@@ -526,6 +703,7 @@ function mapProductToDb(product) {
 
 function mapOrderFromDb(order) {
   if (!order) return null;
+  const rawDate = order.created_at || order.date || null;
   return {
     id: order.id,
     orderNumber: order.order_number,
@@ -541,13 +719,15 @@ function mapOrderFromDb(order) {
     items: Array.isArray(order.items) ? order.items : [],
     total: Number(order.total) || 0,
     date: order.created_at ? new Date(order.created_at).toLocaleString('ar-EG') : order.date,
-    status: order.status || 'new'
+    createdAt: rawDate,
+    status: order.status || 'new',
+    user_id: order.user_id || order.userId || order.userID || null,
+    user_email: order.user_email || order.userEmail || order.email || ''
   };
 }
 
 function mapOrderToDb(order) {
-  return {
-    id: order.id,
+  const row = {
     order_number: order.orderNumber,
     customer: order.customer,
     phone: order.phone,
@@ -560,8 +740,15 @@ function mapOrderToDb(order) {
     shipping_cost: order.shippingCost || 0,
     total: order.total || 0,
     items: Array.isArray(order.items) ? order.items : [],
-    status: order.status || 'new'
+    status: order.status || 'new',
+    user_id: order.user_id || null,
+    user_email: order.user_email || ''
   };
+  // only include `id` when it's a positive DB-assigned id
+  if (typeof order.id === 'number' && order.id > 0) {
+    row.id = order.id;
+  }
+  return row;
 }
 
 function mapCouponFromDb(coupon) {
@@ -615,7 +802,13 @@ function mapCollectionToDb(collectionName, items) {
     case 'coupons':
       return items.map(mapCouponToDb);
     case 'categories':
-      return items.map(item => ({ id: item.id, name: item.name, img: item.img }));
+      return items.map(item => {
+        const row = { name: item.name, img: item.img };
+        if (typeof item.id === 'number' && item.id > 0) {
+          row.id = item.id;
+        }
+        return row;
+      });
     default:
       return items;
   }
@@ -644,35 +837,97 @@ async function saveToFirestore(collectionName, docId, data) {
     return false;
   }
 
-  const trySave = async (fieldName) => {
+  const fetchExistingSettingsRow = async () => {
     try {
-      const payload = { key: docId }; // Changed from id to key
-      payload[fieldName] = data;
-      const { error } = await supabaseClient
+      const response = await supabaseClient
         .from('settings')
-        .upsert(payload, { onConflict: 'key' }); // Added onConflict to specify the conflict resolution column
-      if (error) throw error;
-      settingsField = fieldName;
+        .select('*')
+        .eq('key', docId);
+      if (response?.error) {
+        if (response.error.code === 'PGRST116' || response.error.details?.includes('No rows')) {
+          return null;
+        }
+        throw response.error;
+      }
+      if (!response?.data) return null;
+      return Array.isArray(response.data) ? response.data[0] || null : response.data;
+    } catch (error) {
+      console.warn('Error fetching existing settings row:', error.message || error);
+      return null;
+    }
+  };
+
+  const buildPayload = (fieldName, existingRow) => {
+    const payload = { key: docId };
+    if (fieldName === 'data' || fieldName === 'value') {
+      payload[fieldName] = data;
+    } else if (fieldName === 'rates') {
+      payload.rates = data.rates || data;
+    } else {
+      payload[fieldName] = data;
+    }
+
+    if (existingRow?.id) {
+      payload.id = existingRow.id;
+    }
+    return payload;
+  };
+
+  const savePayload = async (payload) => {
+    try {
+      const response = await supabaseClient
+        .from('settings')
+        .upsert(payload, { onConflict: 'key' })
+        .select();
+      if (response?.error) throw response.error;
       return true;
     } catch (error) {
       if (error.message?.includes('HTTP error! status: 400') || error.message?.includes('column')) {
         return false;
       }
-      console.warn('Error saving settings to Supabase:', error.message);
+      console.warn('Error saving settings to Supabase via upsert:', error.message || error);
       return false;
     }
   };
 
-  if (await trySave(settingsField)) {
+  const existingRow = await fetchExistingSettingsRow();
+  const preferredField = existingRow?.data !== undefined ? 'data' : existingRow?.value !== undefined ? 'value' : existingRow?.rates !== undefined ? 'rates' : settingsField;
+  const alternateField = preferredField === 'data' ? 'value' : preferredField === 'value' ? 'data' : 'rates';
+
+  if (await savePayload(buildPayload(preferredField, existingRow))) {
+    settingsField = preferredField;
     return true;
   }
 
-  const alternateField = settingsField === 'data' ? 'value' : 'data';
-  if (await trySave(alternateField)) {
+  if (preferredField !== alternateField && await savePayload(buildPayload(alternateField, existingRow))) {
+    settingsField = alternateField;
     return true;
   }
 
-  console.warn('Error saving settings to Supabase: failed to save using both data and value fields');
+  if (existingRow?.id) {
+    try {
+      const payload = buildPayload(preferredField, existingRow);
+      const response = await supabaseClient
+        .from('settings')
+        .update(payload)
+        .eq('id', existingRow.id);
+      if (!response?.error) {
+        return true;
+      }
+    } catch (error) {
+      console.warn('Error updating settings row by id:', error.message || error);
+    }
+  }
+
+  try {
+    const payload = { key: docId, value: data };
+    await directSupabaseRequest(`settings?on_conflict=key`, 'POST', payload, { Prefer: 'return=representation' });
+    return true;
+  } catch (error) {
+    console.warn('Final REST fallback failed for settings save:', error.message || error);
+  }
+
+  console.warn('Error saving settings to Supabase: failed to save using both data/value/rates and fallback paths');
   return false;
 }
 
@@ -698,13 +953,13 @@ async function loadFromFirestore(collectionName, docId) {
     return null;
   }
   try {
-    const { data, error } = await supabaseClient
+    const result = await supabaseClient
       .from('settings')
       .select('*')
-      .eq('key', docId) // Changed from id to key
-      .single();
-    if (error) {
-      // If table doesn't exist or no rows, just return null without error
+      .eq('key', docId);
+
+    if (result?.error) {
+      const error = result.error;
       if (error.code === 'PGRST116' || error.details?.includes('No rows') || error.message?.includes('HTTP error! status: 400')) {
         console.warn(`Settings table not available or misconfigured for ${docId}, continuing without`);
         return null;
@@ -712,6 +967,14 @@ async function loadFromFirestore(collectionName, docId) {
       console.error('Error loading settings from Supabase:', error);
       return null;
     }
+
+    let data = null;
+    if (Array.isArray(result?.data)) {
+      data = result.data[0] || null;
+    } else {
+      data = result?.data || null;
+    }
+
     if (!data) return null;
     if (data.data !== undefined) {
       settingsField = 'data';
@@ -750,6 +1013,19 @@ async function directSupabaseRequest(path, method = 'GET', body = null, extraHea
     throw new Error(`Supabase request failed: ${response.status} ${response.statusText} ${text}`);
   }
   return text ? JSON.parse(text) : null;
+}
+
+function splitPayloadByKeySet(payload) {
+  const rows = Array.isArray(payload) ? payload : [payload];
+  const groups = new Map();
+  rows.forEach(row => {
+    const keySet = Object.keys(row).sort().join(',');
+    if (!groups.has(keySet)) {
+      groups.set(keySet, []);
+    }
+    groups.get(keySet).push(row);
+  });
+  return Array.from(groups.values());
 }
 
 async function loadSocialSettingsRow() {
@@ -821,7 +1097,7 @@ async function authSignUp({ name, phone, email, password }) {
     return supabaseClient.auth.signUp({ email, password, options: { data: { full_name: name, phone } } });
   }
 
-  console.warn('Supabase auth client unavailable, using REST fallback for signup');
+  console.info('Supabase auth client unavailable, using REST fallback for signup');
   return directSupabaseAuthRequest('signup', {
     email,
     password,
@@ -837,7 +1113,7 @@ async function authSignIn({ email, password }) {
     return supabaseClient.auth.signInWithPassword({ email, password });
   }
 
-  console.warn('Supabase auth client unavailable, using REST fallback for signin');
+  console.info('Supabase auth client unavailable, using REST fallback for signin');
   return directSupabaseAuthRequest('token?grant_type=password', { email, password });
 }
 
@@ -855,9 +1131,7 @@ async function upsertProfileRow(userId, fullName, phone, email) {
   if (supabaseClient && typeof supabaseClient.from === 'function') {
     for (const profile of candidates) {
       try {
-        console.log('Attempting profiles insert via client', profile);
         const result = await supabaseClient.from('profiles').insert(profile).select().single();
-        console.log('profiles insert client result', result);
         if (result && result.error) {
           console.warn('profiles insert returned error', result.error, profile);
           continue;
@@ -871,9 +1145,7 @@ async function upsertProfileRow(userId, fullName, phone, email) {
 
   for (const profile of candidates) {
     try {
-      console.log('Attempting profiles insert via REST', profile);
       const res = await directSupabaseRequest('profiles', 'POST', profile);
-      console.log('profiles insert REST result', res);
       return { data: res, error: null };
     } catch (error) {
       console.error('profiles insert via REST failed', error?.message || error, profile);
@@ -889,6 +1161,7 @@ function resolveUserIdFromAuthResult(data) {
   if (data.user?.id) return data.user.id;
   if (data.id) return data.id;
   if (data.user_id) return data.user_id;
+  if (data.session?.user?.id) return data.session.user.id;
   if (data.data?.user?.id) return data.data.user.id;
   return null;
 }
@@ -1036,7 +1309,8 @@ async function saveSocialSettings(social) {
   return false;
 }
 
-async function loadCollectionFromFirestore(collectionName) {
+async function loadCollectionFromFirestore(collectionName, options = {}) {
+  const selectColumns = options.select || '*';
   if (firebaseEnabled && firebaseDb) {
     try {
       console.log(`Attempting to load ${collectionName} from Firebase...`);
@@ -1056,45 +1330,228 @@ async function loadCollectionFromFirestore(collectionName) {
   }
 
   if (!supabaseClient) {
+    await initSupabaseClient();
+  }
+  if (!supabaseClient) {
     console.error('Supabase client is not initialized for loadCollectionFromFirestore');
     return [];
   }
+
   try {
     console.log(`Attempting to load ${collectionName} from Supabase...`);
     const isDescending = collectionName === 'products'; // Newest products first
+    const useOfficialClient = window.supabase && typeof window.supabase.createClient === 'function' && !(supabaseClient instanceof SimpleSupabaseClient);
+    if (!useOfficialClient) {
+      console.debug(`Using direct REST fallback for ${collectionName} because official Supabase client is unavailable.`);
+      const selectQuery = '*';
+      const orderPart = isDescending ? '&order=id.asc' : '';
+      const fallbackData = await directSupabaseRequest(`${collectionName}?select=${selectQuery}${orderPart}`, 'GET');
+      return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
+    }
+
     const query = supabaseClient
       .from(collectionName)
-      .select('*');
+      .select(selectColumns);
 
     const queryWithOrder = typeof query.order === 'function'
       ? query.order('id', { ascending: !isDescending })
       : query;
 
     const result = await queryWithOrder;
-    const data = result?.data || result;
+    const data = result?.data ?? result;
     const error = result?.error || null;
 
     if (error) {
       console.error(`Error loading ${collectionName} from Supabase:`, error);
       throw error;
     }
-    if (!Array.isArray(data) || data.length === 0) {
+
+    if (!Array.isArray(data)) {
+      console.warn(`Supabase returned unexpected data for ${collectionName}, using REST fallback.`);
+      const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
+      return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
+    }
+
+    if (data.length === 0) {
       console.warn(`No rows returned for ${collectionName} from Supabase; trying direct REST fallback.`);
       const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
       return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
     }
-    console.log(`Raw data from ${collectionName}:`, data);
+
+    console.log(`Loaded ${data.length} rows for ${collectionName} from Supabase.`);
     return normalizeCollectionFromDb(collectionName, data);
   } catch (error) {
     console.error(`Exception loading ${collectionName} from Supabase:`, error);
     try {
       const fallbackData = await directSupabaseRequest(`${collectionName}?select=*`, 'GET');
+      console.log(`Loaded ${Array.isArray(fallbackData) ? fallbackData.length : 0} rows for ${collectionName} from Supabase REST fallback.`);
       return normalizeCollectionFromDb(collectionName, Array.isArray(fallbackData) ? fallbackData : []);
     } catch (fallbackError) {
       console.error(`Supabase REST fallback failed for ${collectionName}:`, fallbackError);
       return [];
     }
   }
+}
+
+// Load a limited product preview (only necessary columns) to speed initial rendering
+async function loadProductsPreview(limit = 200) {
+  if (!supabaseClient) await initSupabaseClient();
+  if (!supabaseClient) return [];
+  try {
+    const cols = 'id,name,price,img,category,available,discount,original_price';
+    const query = supabaseClient.from('products').select(cols).order('id', { ascending: false }).limit(limit);
+    const result = await query;
+    const data = result?.data ?? result;
+    if (!Array.isArray(data)) return [];
+    const products = normalizeCollectionFromDb('products', data);
+    console.log('loadProductsPreview loaded', products.length, 'products');
+    return products;
+  } catch (err) {
+    console.warn('loadProductsPreview failed, falling back to REST/collection load:', err?.message || err);
+    try {
+      const restData = await directSupabaseRequest('products?select=id,name,price,img,category,available,discount,original_price', 'GET');
+      if (Array.isArray(restData)) {
+        console.log('loadProductsPreview REST fallback loaded', restData.length, 'products');
+        return normalizeCollectionFromDb('products', restData);
+      }
+    } catch (restError) {
+      console.warn('loadProductsPreview REST fallback failed:', restError?.message || restError);
+    }
+    return await loadCollectionFromFirestore('products');
+  }
+}
+
+async function loadCategoriesPreview() {
+  if (!supabaseClient) await initSupabaseClient();
+  if (!supabaseClient) return [];
+  try {
+    const result = await supabaseClient.from('categories').select('id,name,img');
+    const data = result?.data ?? result;
+    if (Array.isArray(data)) {
+      console.log('loadCategoriesPreview loaded', data.length, 'categories');
+      return normalizeCollectionFromDb('categories', data);
+    }
+  } catch (err) {
+    console.warn('loadCategoriesPreview failed, falling back to REST:', err?.message || err);
+  }
+  try {
+    const restData = await directSupabaseRequest('categories?select=id,name,img', 'GET');
+    if (Array.isArray(restData)) {
+      console.log('loadCategoriesPreview REST fallback loaded', restData.length, 'categories');
+      return normalizeCollectionFromDb('categories', restData);
+    }
+  } catch (restError) {
+    console.warn('loadCategoriesPreview REST fallback failed:', restError?.message || restError);
+  }
+  return [];
+}
+
+async function loadAllProducts() {
+  if (!supabaseClient) await initSupabaseClient();
+  if (!supabaseClient) return [];
+  try {
+    const result = await supabaseClient.from('products').select('*').order('id', { ascending: false });
+    const data = result?.data ?? result;
+    if (!Array.isArray(data)) return [];
+    const products = normalizeCollectionFromDb('products', data);
+    console.log('loadAllProducts loaded', products.length, 'products');
+    return products;
+  } catch (err) {
+    console.warn('loadAllProducts failed, falling back to REST/collection load:', err?.message || err);
+    try {
+      const restData = await directSupabaseRequest('products?select=*', 'GET');
+      if (Array.isArray(restData)) {
+        console.log('loadAllProducts REST fallback loaded', restData.length, 'products');
+        return normalizeCollectionFromDb('products', restData);
+      }
+    } catch (restError) {
+      console.warn('loadAllProducts REST fallback failed:', restError?.message || restError);
+    }
+    return await loadCollectionFromFirestore('products');
+  }
+}
+
+// Load orders filtered for current authenticated user (by id or email). Returns [] if no user.
+async function loadOrdersForCurrentUser() {
+  if (!window.currentAuthUser) return [];
+  const user = window.currentAuthUser;
+  const email = (user.email || '').toLowerCase().trim();
+  const userId = user.id || null;
+  const columns = 'id,order_number,customer,phone,governorate,address,payment,notes,coupon,coupon_discount,shipping_cost,items,total,created_at,status,user_id,user_email,date';
+
+  const buildOrderQuery = (filter) => {
+    let path = `orders?select=${columns}`;
+    if (filter) path += `&${filter}`;
+    path += '&order=id.desc&limit=500';
+    return path;
+  };
+
+  if (!supabaseClient) await initSupabaseClient();
+  if (!supabaseClient) return [];
+
+  try {
+    let data = null;
+    if (userId || email) {
+      const encodedEmail = encodeURIComponent(email);
+      const queries = [];
+      if (userId && email) {
+        const orQuery = `or=(user_id.eq.${userId},user_email.eq.${encodedEmail})`;
+        queries.push(orQuery);
+      }
+      if (userId) {
+        queries.push(`user_id=eq.${userId}`);
+      }
+      if (email) {
+        queries.push(`user_email=eq.${encodedEmail}`);
+      }
+
+      for (const filterQuery of queries) {
+        try {
+          const path = buildOrderQuery(filterQuery);
+          data = await directSupabaseRequest(path, 'GET');
+          if (Array.isArray(data) && data.length > 0) {
+            return normalizeCollectionFromDb('orders', data);
+          }
+        } catch (queryError) {
+          console.warn('loadOrdersForCurrentUser query failed:', queryError?.message || queryError);
+        }
+      }
+    }
+
+    console.warn('loadOrdersForCurrentUser: user-specific query returned 0 rows or failed, using full orders fallback');
+    const allOrders = await loadCollectionFromFirestore('orders');
+    if (!Array.isArray(allOrders) || allOrders.length === 0) {
+      return [];
+    }
+
+    const filtered = allOrders.filter(order => {
+      const orderUserId = order.user_id || null;
+      const orderEmail = String(order.user_email || '').toLowerCase().trim();
+      const orderEmailFallback = String(order.customer || '').toLowerCase().trim();
+      if (userId && orderUserId && String(userId) === String(orderUserId)) return true;
+      if (email && orderEmail && email === orderEmail) return true;
+      if (email && orderEmailFallback.includes(email)) return true;
+      return false;
+    });
+    return filtered;
+  } catch (err) {
+    console.warn('loadOrdersForCurrentUser failed, returning no orders:', err?.message || err);
+    return [];
+  }
+}
+
+async function refreshOrdersForCurrentUser() {
+  if (!window.currentAuthUser) return [];
+  const orders = await loadOrdersForCurrentUser();
+  if (Array.isArray(orders)) {
+    state.orders = orders;
+    normalizeOrderNumbers();
+    renderOrders();
+    renderUserOrders();
+    orderCount.textContent = state.orders.length;
+    adminOrderBadge.textContent = state.orders.length;
+  }
+  return orders;
 }
 
 async function saveCollectionToFirestore(collectionName, items) {
@@ -1109,7 +1566,24 @@ async function saveCollectionToFirestore(collectionName, items) {
       });
       await batch.commit();
       console.log(`Successfully saved ${collectionName} to Firebase`);
-      return;
+      // Also attempt to persist to Supabase so the Postgres tables stay in sync.
+      try {
+        if (!supabaseClient) await initSupabaseClient();
+        if (supabaseClient && typeof supabaseClient.from === 'function') {
+          const payload = mapCollectionToDb(collectionName, items);
+          const upsertOp = supabaseClient.from(collectionName).upsert(payload, { onConflict: 'id' });
+          if (typeof upsertOp.select === 'function') {
+            await upsertOp.select();
+          } else if (typeof upsertOp.then === 'function') {
+            await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
+          }
+          console.log(`Also saved ${collectionName} to Supabase after Firebase commit`);
+        } else {
+          console.warn('Supabase client unavailable; skipped syncing Firebase -> Supabase');
+        }
+      } catch (err) {
+        console.warn('Failed to sync Firebase -> Supabase for', collectionName, err?.message || err);
+      }
     } catch (error) {
       firebaseEnabled = false;
       console.warn('Firebase saveCollectionToFirestore failed:', error.message);
@@ -1126,28 +1600,161 @@ async function saveCollectionToFirestore(collectionName, items) {
   }
   try {
     console.log(`Falling back to Supabase for ${collectionName}`);
-    const payload = mapCollectionToDb(collectionName, items);
-    const upsertOp = supabaseClient
-      .from(collectionName)
-      .upsert(payload, { onConflict: 'id' });
+    let payload = mapCollectionToDb(collectionName, items);
 
-    let result;
-    if (typeof upsertOp.select === 'function') {
-      result = await upsertOp.select();
-    } else if (typeof upsertOp.then === 'function') {
-      result = await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
-    } else {
-      result = await upsertOp;
+    // Sanitize client-generated IDs for orders: many client IDs are Date.now() timestamps
+    // which collide with DB primary keys. Treat very large positive numbers as local IDs
+    // and remove them so the DB can assign an ID.
+    if (collectionName === 'orders') {
+      payload = payload.map(row => {
+        const copy = { ...row };
+        if (typeof copy.id === 'number' && copy.id > 1e11) {
+          delete copy.id;
+        }
+        return copy;
+      });
     }
 
-    const error = result?.error;
-    if (error) {
-      console.error(`Error saving ${collectionName} to Supabase:`, error);
-    } else {
-      console.log(`Successfully saved ${collectionName} to Supabase`);
+    let result;
+    let saveError = null;
+
+    if (supabaseClient && typeof supabaseClient.from === 'function') {
+      try {
+        const upsertOp = supabaseClient
+          .from(collectionName)
+          .upsert(payload, { onConflict: 'id' });
+
+        if (typeof upsertOp.select === 'function') {
+          result = await upsertOp.select();
+        } else if (typeof upsertOp.then === 'function') {
+          result = await new Promise((resolve, reject) => upsertOp.then(resolve, reject).catch(reject));
+        } else {
+          result = await upsertOp;
+        }
+
+        saveError = result?.error || null;
+        if (!saveError) {
+          console.log(`Successfully saved ${collectionName} to Supabase`);
+          if (collectionName === 'categories') {
+            try {
+              state.categories = await loadCollectionFromFirestore('categories');
+              renderCategories();
+              renderCategoryPreview();
+              populateCategorySelect();
+            } catch (reloadError) {
+              console.warn('Failed to reload categories after saving:', reloadError?.message || reloadError);
+            }
+          }
+          return;
+        }
+      } catch (error) {
+        saveError = error;
+        console.warn(`Supabase client upsert failed for ${collectionName}, trying REST fallback:`, error?.message || error);
+      }
+    }
+
+    try {
+      const payloadGroups = splitPayloadByKeySet(payload);
+      for (const group of payloadGroups) {
+        // For REST fallback, ensure we don't send large client-generated ids that will
+        // conflict with Postgres primary key. Detect and remove them for orders.
+        if (collectionName === 'orders') {
+          for (const r of group) {
+            if (typeof r.id === 'number' && r.id > 1e11) delete r.id;
+          }
+        }
+        const groupHasId = group.length > 0 && Object.prototype.hasOwnProperty.call(group[0], 'id');
+        const url = groupHasId ? `${collectionName}?on_conflict=id` : collectionName;
+        try {
+          const restResult = await directSupabaseRequest(
+            url,
+            'POST',
+            group,
+            groupHasId ? { Prefer: 'return=representation,resolution=merge-duplicates' } : undefined
+          );
+          console.log(`Successfully saved ${collectionName} to Supabase via REST fallback`, restResult);
+        } catch (groupError) {
+          const message = String(groupError.message || '');
+          if (collectionName === 'orders' && (message.includes("Could not find the 'user_email' column") || message.includes("Could not find the 'user_id' column") || message.includes('column "user_email"') || message.includes('column "user_id"'))) {
+            console.error('Supabase orders table is missing required user_id/user_email columns. Without these columns, orders cannot be matched to users across devices.');
+            throw new Error('Orders save failed because orders.user_id or orders.user_email column is missing in Supabase schema.');
+          }
+          throw groupError;
+        }
+      }
+      if (collectionName === 'categories') {
+        try {
+          state.categories = await loadCollectionFromFirestore('categories');
+          renderCategories();
+          renderCategoryPreview();
+          populateCategorySelect();
+        } catch (reloadError) {
+          console.warn('Failed to reload categories after saving:', reloadError?.message || reloadError);
+        }
+      }
+      return;
+    } catch (restError) {
+      console.error(`Error saving ${collectionName} to Supabase via REST fallback:`, restError);
+      if (saveError) {
+        console.error(`Original Supabase client error:`, saveError);
+      }
     }
   } catch (error) {
     console.error(`Error saving ${collectionName} to Supabase:`, error);
+  }
+}
+
+// Delete a single item from remote stores (Firebase + Supabase/REST fallback)
+async function deleteRemoteItem(collectionName, id) {
+  if (!id) return;
+  // Firebase delete
+  if (firebaseEnabled && firebaseDb) {
+    try {
+      const docRef = firebaseDb.collection(collectionName).doc(String(id));
+      await docRef.delete();
+      console.log(`Deleted ${collectionName}/${id} from Firebase`);
+    } catch (err) {
+      console.warn(`Firebase delete failed for ${collectionName}/${id}:`, err?.message || err);
+    }
+  }
+
+  // Supabase client delete (or REST fallback)
+  try {
+    if (!supabaseClient) await initSupabaseClient();
+  } catch (e) {
+    // initSupabaseClient may fail silently; continue to REST fallback
+  }
+
+  if (supabaseClient && typeof supabaseClient.from === 'function') {
+    const collection = supabaseClient.from(collectionName);
+    if (collection && typeof collection.delete === 'function') {
+      try {
+        const del = await collection.delete().eq('id', id);
+        if (del.error) {
+          console.warn(`Supabase delete returned error for ${collectionName}/${id}:`, del.error);
+        } else {
+          console.log(`Deleted ${collectionName}/${id} from Supabase`);
+        }
+      } catch (err) {
+        console.warn(`Supabase delete failed for ${collectionName}/${id}:`, err?.message || err);
+      }
+    } else {
+      // Supabase client does not support delete() in this runtime, use REST fallback.
+      try {
+        await directSupabaseRequest(`${collectionName}?id=eq.${encodeURIComponent(id)}`, 'DELETE');
+        console.log(`Deleted ${collectionName}/${id} via Supabase REST fallback`);
+      } catch (err) {
+        console.warn(`REST fallback delete failed for ${collectionName}/${id}:`, err?.message || err);
+      }
+    }
+  } else {
+    // REST fallback: DELETE /rest/v1/{collection}?id=eq.{id}
+    try {
+      await directSupabaseRequest(`${collectionName}?id=eq.${encodeURIComponent(id)}`, 'DELETE');
+      console.log(`Deleted ${collectionName}/${id} via Supabase REST fallback`);
+    } catch (err) {
+      console.warn(`REST fallback delete failed for ${collectionName}/${id}:`, err?.message || err);
+    }
   }
 }
 
@@ -1210,6 +1817,26 @@ function getNextOrderNumber() {
   return existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1000;
 }
 
+function generateOrderNumber() {
+  // Prefer a persistent counter in localStorage to avoid duplicate client-side numbers
+  try {
+    const nextFromState = getNextOrderNumber();
+    const stored = Number(localStorage.getItem('nextOrderNumber')) || 0;
+    // pick the highest candidate to avoid collisions, but never below 1000
+    const candidateFromTime = Math.floor(Date.now() / 1000) % 1000000000;
+    const candidate = Math.max(nextFromState, stored, candidateFromTime, 1000);
+    // store the following number for next time
+    localStorage.setItem('nextOrderNumber', String(candidate + 1));
+    return candidate;
+  } catch (e) {
+    // if localStorage is not available, fall back to previous logic
+    const next = getNextOrderNumber();
+    if (next > 1000) return next;
+    const candidate = Math.floor(Date.now() / 1000) % 1000000000;
+    return Math.max(next, candidate, 1000);
+  }
+}
+
 function normalizeOrderNumbers() {
   const orderNumbers = state.orders
     .map(order => Number(order.orderNumber))
@@ -1222,6 +1849,7 @@ function normalizeOrderNumbers() {
       if (!Number.isNaN(currentValue)) return { ...order, orderNumber: currentValue };
       return { ...order, orderNumber: nextNumber++ };
     }).reverse();
+    try { localStorage.setItem('nextOrderNumber', String(nextNumber)); } catch (e) {}
     return;
   }
 
@@ -1234,6 +1862,7 @@ function normalizeOrderNumbers() {
     nextNumber++;
     return updatedOrder;
   });
+  try { localStorage.setItem('nextOrderNumber', String(nextNumber)); } catch (e) {}
 }
 
 function getProductCardFooter(product, stopPropagation = false) {
@@ -1241,7 +1870,7 @@ function getProductCardFooter(product, stopPropagation = false) {
   if (!isAvailable) {
     return `<span class="unavailable-tag">غير متوفر الآن</span>`;
   }
-  const priceDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: var(--text-muted); font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : formatPrice(product.price);
+  const priceDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: #f97316; font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : formatPrice(product.price);
   const clickCode = stopPropagation ? 'event.stopPropagation(); ' : '';
   return `<span class="price-tag">${priceDisplay}</span><button class="btn" onclick="${clickCode}addToCart(${product.id})">أضف للسلة</button>`;
 }
@@ -1262,7 +1891,6 @@ function renderProducts() {
       </div>
     </article>
   `}).join('');
-  renderAdminProducts(adminProductSearch, adminProductPage);
   renderLatestProducts();
   renderDiscountedProducts();
   renderCategories();
@@ -1358,7 +1986,7 @@ function renderProductDetail(productId) {
   productDetailTitle.textContent = product.name;
   productDetailCategory.textContent = product.category;
 
-  const priceDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: var(--text-muted); font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : formatPrice(product.price);
+  const priceDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: #f97316; font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : formatPrice(product.price);
   const isAvailable = product.available !== false;
   const productPriceSection = isAvailable ? `<span class="price-tag">${priceDisplay}</span>` : `<span class="unavailable-tag unavailable-detail">غير متوفر الآن</span>`;
   const productQuantitySection = isAvailable ? `
@@ -1463,13 +2091,14 @@ function resetCategoryForm() {
 
 async function saveCategories() {
   try {
-    saveCollectionToFirestore('categories', state.categories);
+    await saveCollectionToFirestore('categories', state.categories);
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
       alert('حجم البيانات كبير جداً. جاري حفظ الفئات بدون الصور لتوفير المساحة.');
       const categoriesWithoutImages = state.categories.map(cat => ({ ...cat, img: null }));
-      saveCollectionToFirestore('categories', categoriesWithoutImages);
+      await saveCollectionToFirestore('categories', categoriesWithoutImages);
     } else {
+      console.error('خطأ أثناء حفظ الفئات:', e);
       throw e;
     }
   }
@@ -1482,13 +2111,13 @@ async function addOrUpdateCategory(event) {
   const file = fileInput.files[0];
   if (!name) return;
 
-  const applyCategoryUpdate = (imageData) => {
+  const applyCategoryUpdate = async (imageData) => {
     if (categoryEditId) {
       const category = state.categories.find(item => item.id === categoryEditId);
       if (!category) return;
       category.name = name;
       if (imageData) category.img = imageData;
-      saveCategories();
+      await saveCategories();
       renderCategories();
       renderCategoryPreview();
       resetCategoryForm();
@@ -1497,12 +2126,11 @@ async function addOrUpdateCategory(event) {
     }
 
     if (!imageData) {
-      alert('من فضلك اختر صورة أو أيقونة للفئة');
-      return;
+      imageData = 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=400&q=80';
     }
 
-    state.categories.unshift({ id: Date.now(), name, img: imageData });
-    saveCategories();
+    state.categories.unshift({ id: -Date.now(), name, img: imageData });
+    await saveCategories();
     renderCategories();
     renderCategoryPreview();
     resetCategoryForm();
@@ -1510,39 +2138,48 @@ async function addOrUpdateCategory(event) {
   };
 
   if (file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const maxWidth = 200;
-        const maxHeight = 200;
-        let { width, height } = img;
+    await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const maxWidth = 200;
+            const maxHeight = 200;
+            let { width, height } = img;
 
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
 
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedData = canvas.toDataURL('image/jpeg', 0.7);
-        applyCategoryUpdate(compressedData);
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedData = canvas.toDataURL('image/jpeg', 0.7);
+            await applyCategoryUpdate(compressedData);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        img.onerror = reject;
+        img.src = reader.result;
       };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   } else {
-    applyCategoryUpdate(null);
+    await applyCategoryUpdate(null);
   }
 }
 
@@ -1559,7 +2196,15 @@ async function deleteCategory(id) {
   const category = state.categories.find(item => item.id === id);
   if (!category) return;
   if (!confirm(`متأكد إنك عايز تحذف الفئة ${category.name}?`)) return;
+  // Remove locally first so the UI updates immediately.
   state.categories = state.categories.filter(item => item.id !== id);
+  // Delete the removed category from remote storage before re-saving the remaining list.
+  try {
+    await deleteRemoteItem('categories', id);
+  } catch (err) {
+    console.warn('deleteCategory: remote deletion failed', err?.message || err);
+  }
+  // Persist the current categories list.
   await saveCategories();
   renderCategories();
   renderCategoryPreview();
@@ -1684,6 +2329,137 @@ function addReviewImage(event) {
   reader.readAsDataURL(file);
 }
 
+function previewSliderImages(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  const preview = sliderImagesPreview;
+  if (!preview) return;
+
+  files.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      state.sliderImages.unshift({ src: reader.result, selected: true });
+      saveSliderImages();
+      renderSliderImages();
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function renderSliderImages() {
+  if (!sliderImagesPreview) return;
+  const normalizedImages = state.sliderImages.map(normalizeSliderImage).filter(Boolean);
+  state.sliderImages = normalizedImages;
+  let html = '';
+  // Add-card for uploading
+  html += `<article class="slider-image-add" onclick="openSliderImagePicker()" role="button" aria-label="أضف صورة للسلايدر"><div class="slider-add-inner">+</div></article>`;
+  if (normalizedImages.length) {
+    html += normalizedImages.map((image, index) => `
+      <article class="slider-image-card ${image.selected ? 'selected' : ''}">
+        <button type="button" class="slider-image-select ${image.selected ? 'active' : ''}" onclick="toggleSliderImageSelection(${index})" aria-label="اختيار الصورة"></button>
+        <button type="button" class="slider-image-delete" onclick="removeSliderImage(${index})" aria-label="حذف الصورة">×</button>
+        <img src="${image.src}" alt="صورة السلايدر ${index + 1}" loading="lazy">
+      </article>
+    `).join('');
+  } else {
+    html += `<p class="card-detail" style="grid-column: 1 / -1; text-align:center;">لم تتم إضافة صور للسلايدر بعد.</p>`;
+  }
+  sliderImagesPreview.innerHTML = html;
+  renderHomeSlider();
+}
+
+function openSliderImagePicker() {
+  const input = document.getElementById('slider-image-input');
+  if (input) input.click();
+}
+
+function normalizeSliderImage(image) {
+  if (!image) return null;
+  if (typeof image === 'string') {
+    return { src: image, selected: true };
+  }
+  return {
+    src: image.src || '',
+    selected: Boolean(image.selected)
+  };
+}
+
+function renderHomeSlider() {
+  const slider = document.getElementById('home-slider');
+  if (!slider) return;
+  const normalizedImages = state.sliderImages.map(normalizeSliderImage).filter(Boolean);
+  let selectedImages = normalizedImages.filter(img => img.selected === true);
+  if (!selectedImages.length) {
+    selectedImages = normalizedImages;
+  }
+
+  if (!selectedImages.length) {
+    slider.innerHTML = `<div class="home-slider-empty">لم يتم اختيار صور للسلايدر بعد. اختر الصور المميزة بعلامة الصح في لوحة التحكم.</div>`;
+    if (homeSliderTimer) {
+      clearInterval(homeSliderTimer);
+      homeSliderTimer = null;
+    }
+    return;
+  }
+
+  homeSliderIndex = Number.isFinite(homeSliderIndex) ? homeSliderIndex : 0;
+  homeSliderIndex = homeSliderIndex % selectedImages.length;
+  if (homeSliderIndex < 0) homeSliderIndex = 0;
+
+  slider.innerHTML = selectedImages.map((image, index) => `
+    <div class="home-slide${index === homeSliderIndex ? ' active' : ''}">
+      <img src="${image.src}" alt="صورة سلايدر ${index + 1}">
+    </div>
+  `).join('');
+
+  const activeSlide = slider.querySelector('.home-slide.active');
+  if (!activeSlide) {
+    const firstSlide = slider.querySelector('.home-slide');
+    if (firstSlide) firstSlide.classList.add('active');
+    homeSliderIndex = 0;
+  }
+
+  startHomeSliderAutoPlay(selectedImages.length);
+}
+
+function startHomeSliderAutoPlay(slideCount) {
+  if (homeSliderTimer) {
+    clearInterval(homeSliderTimer);
+  }
+  if (slideCount < 2) return;
+  homeSliderTimer = setInterval(() => {
+    homeSliderIndex = (homeSliderIndex + 1) % slideCount;
+    const slides = document.querySelectorAll('#home-slider .home-slide');
+    slides.forEach((slide, index) => slide.classList.toggle('active', index === homeSliderIndex));
+  }, 4200);
+}
+
+function removeSliderImage(index) {
+  state.sliderImages.splice(index, 1);
+  saveSliderImages();
+  renderSliderImages();
+}
+
+function toggleSliderImageSelection(index) {
+  let image = state.sliderImages[index];
+  if (!image) return;
+  if (typeof image === 'string') {
+    image = { src: image, selected: true };
+    state.sliderImages[index] = image;
+  } else if (image.selected !== undefined) {
+    image.selected = !image.selected;
+  } else {
+    image.selected = true;
+  }
+  saveSliderImages();
+  renderSliderImages();
+}
+
+async function saveSliderImages() {
+  await saveToFirestore('settings', 'slider_images', { images: state.sliderImages });
+}
+
 function renderDiscountedProducts() {
   if (!discountedProductsGrid) return;
   const discounted = state.products.filter(product => product.discount && product.available !== false);
@@ -1773,6 +2549,9 @@ function populateGovernorateOptions() {
 function buildSummary() {
   populateGovernorateOptions();
   const totalProducts = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // remove diagnostic logs from production
+  try {
+  } catch (e) { }
   if (!state.cart.length) {
     orderSummary.innerHTML = '<p class="card-detail">مفيش منتجات في السلة. روح صفحة المنتجات و اضيف حاجات حلوة.</p>';
     return;
@@ -1815,8 +2594,21 @@ function buildSummary() {
   `;
 }
 
+  // Prefill email field if user is logged in
+  try {
+    const emailInput = document.querySelector('input[name="email"]');
+    const authUser = window.currentAuthUser || null;
+    if (emailInput && authUser && authUser.email) {
+      emailInput.value = authUser.email;
+    }
+  } catch (e) {
+    console.warn('buildSummary prefill email failed', e?.message || e);
+  }
+
 async function submitOrder(event) {
   event.preventDefault();
+  // debug log removed for cleaner console
+  try { } catch (e) {}
   if (!state.cart.length) {
     alert('لازم يكون في منتجات بالسلة قبل ما تكمل الطلب');
     window.location.hash = '#products';
@@ -1829,11 +2621,19 @@ async function submitOrder(event) {
   const couponCode = formData.get('coupon')?.trim() || '';
   const coupon = couponCode ? findValidCoupon(couponCode) : null;
   const couponDiscount = coupon ? getCouponDiscount(baseTotal, coupon) : 0;
+  const authUser = window.currentAuthUser || null;
+  // prefer explicit email field, fallback to authenticated user email
+  const formEmail = (formData.get('email') || '').trim();
+  const resolvedEmail = formEmail || authUser?.email || '';
+  const orderCustomer = authUser?.fullName || formData.get('name') || resolvedEmail.split('@')[0] || 'مستخدم';
+  const orderPhone = (formData.get('phone') || authUser?.phone || '').trim();
+  const now = new Date();
   const order = {
-    id: Date.now(),
-    orderNumber: getNextOrderNumber(),
-    customer: formData.get('name'),
-    phone: formData.get('phone'),
+     // use a temporary negative id on client to avoid colliding with DB bigserial ids
+     id: -Date.now(),
+    orderNumber: generateOrderNumber(),
+    customer: orderCustomer,
+    phone: orderPhone,
     governorate: selectedGov,
     address: formData.get('address'),
     payment: formData.get('payment'),
@@ -1843,17 +2643,21 @@ async function submitOrder(event) {
     shippingCost,
     items: state.cart.map(item => ({ id: item.id, name: item.name, qty: item.quantity, price: item.price, img: item.img })),
     total: baseTotal + shippingCost - couponDiscount,
-    date: new Date().toLocaleString('ar-EG'),
-    status: 'new'
+    date: now.toLocaleString('ar-EG'),
+    createdAt: now.toISOString(),
+    status: 'new',
+    user_id: authUser?.id || null,
+    user_email: resolvedEmail
   };
   state.orders.unshift(order);
-  saveCollectionToFirestore('orders', state.orders);
+  saveCollectionToFirestore('orders', [order]);
   state.cart = [];
   saveToFirestore('settings', 'cart', { items: state.cart });
   renderCart();
   event.target.reset();
   confirmMessage.classList.remove('hidden');
   renderOrders();
+  renderUserOrders();
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
   window.location.hash = '#home';
@@ -1867,7 +2671,16 @@ function renderOrders(search = '') {
     return term.includes(adminOrderSearch);
   });
 
-  ordersList.innerHTML = filtered.length ? filtered.map(order => {
+  const sortedOrders = [...filtered].sort((a, b) => {
+    const aDate = new Date(a.createdAt || a.created_at || a.date || '');
+    const bDate = new Date(b.createdAt || b.created_at || b.date || '');
+    if (!Number.isNaN(aDate.getTime()) && !Number.isNaN(bDate.getTime())) {
+      return bDate - aDate;
+    }
+    return (b.id || 0) - (a.id || 0);
+  });
+
+  ordersList.innerHTML = sortedOrders.length ? sortedOrders.map(order => {
     const status = order.status || 'new';
     const statusClass = `status-${status}`;
     const governorate = order.governorate || 'غير محدد';
@@ -1895,7 +2708,11 @@ function renderOrders(search = '') {
         ${order.coupon ? `<p class="order-meta-row">كوبون: ${order.coupon} - خصم ${formatPrice(order.couponDiscount || 0)}</p>` : ''}
         <p class="order-notes">${notesText}</p>
         <div class="product-meta">
-          <span class="price-tag">${formatPrice(order.total)}</span>
+          <span class="price-tag">
+            <span class="price-main">${formatPrice(order.total)}</span>
+            ${order.coupon ? `<span class="price-discount">خصم ${formatPrice(order.couponDiscount || 0)}</span>` : ''}
+            <span class="price-shipping">شحن ${formatPrice(order.shippingCost || 0)}</span>
+          </span>
           <button class="secondary-btn" onclick="toggleOrderDetails(${order.id})">عرض التفاصيل</button>
         </div>
         <div class="order-details hidden" id="order-detail-${order.id}">
@@ -2027,9 +2844,7 @@ async function saveCoupon(event) {
 
   saveCollectionToFirestore('coupons', state.coupons);
   resetCouponForm();
-  renderCoupons(adminCouponSearch);
-}
-
+  }
 function toggleCouponActive(couponId) {
   const coupon = state.coupons.find(item => item.id === couponId);
   if (!coupon) return;
@@ -2069,6 +2884,7 @@ function setOrderStatus(orderId, status) {
   order.status = status;
   saveCollectionToFirestore('orders', state.orders);
   renderOrders(adminOrderSearch);
+  renderUserOrders();
 }
 
 function renderAdminProducts(search = '', page = 1) {
@@ -2088,7 +2904,7 @@ function renderAdminProducts(search = '', page = 1) {
 
   adminProductsTable.innerHTML = pageProducts.length ? pageProducts.map(product => {
     const priceDisplay = formatPrice(product.price);
-    const discountDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: var(--text-muted); font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : '—';
+    const discountDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: #f97316; font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : '—';
     const availabilityLabel = product.available !== false ? '<span class="status-chip available">متوفر</span>' : '<span class="status-chip unavailable">غير متوفر</span>';
     return `
       <tr>
@@ -2197,6 +3013,10 @@ function loginAdmin(event) {
     adminPanel.classList.remove('hidden');
     adminError.textContent = '';
     setSection('admin');
+    const activeAdminTab = document.querySelector('.tab-btn.active');
+    if (activeAdminTab) {
+      switchAdminTab({ currentTarget: activeAdminTab });
+    }
   } else {
     adminError.textContent = 'كلمة المرور غلط. جرب تاني.';
   }
@@ -2278,6 +3098,19 @@ function switchAdminTab(event) {
   const target = event.currentTarget.dataset.tab;
   adminTabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === target));
   document.querySelectorAll('.admin-tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.dataset.tab !== target));
+  // Only render or keep the review images preview when reviews tab is active
+  try {
+    if (typeof reviewImagesPreview !== 'undefined' && reviewImagesPreview) {
+      if (target === 'reviews') {
+        renderReviewImagesPreview();
+      } else {
+        // clear preview when leaving reviews tab to avoid showing it across other tabs
+        reviewImagesPreview.innerHTML = '';
+      }
+    }
+  } catch (e) {
+    console.error('Error updating review preview on tab switch', e);
+  }
   if (target === 'social') {
     fillSocialForm();
   }
@@ -2291,7 +3124,22 @@ function switchAdminTab(event) {
     renderAdminProducts(adminProductSearch, 1);
   }
   if (target === 'orders') {
-    renderOrders(adminOrderSearch);
+    // Always refresh the full orders list for the admin panel
+    // so the admin view imports all saved orders from the database.
+    (async () => {
+      try {
+        const fullOrders = await loadCollectionFromFirestore('orders');
+        if (Array.isArray(fullOrders)) {
+          state.orders = fullOrders;
+          normalizeOrderNumbers();
+          if (orderCount) orderCount.textContent = state.orders.length;
+          if (adminOrderBadge) adminOrderBadge.textContent = state.orders.length;
+        }
+      } catch (err) {
+        console.warn('Failed to load full orders for admin tab:', err?.message || err);
+      }
+      renderOrders(adminOrderSearch);
+    })();
   }
   if (target === 'shipping') {
     renderShippingRates();
@@ -2311,95 +3159,237 @@ function fillSocialForm() {
 async function loadRemoteData() {
   if (!navigator.onLine) {
     console.warn('Navigator reports offline — attempting remote data load anyway (some devices mis-report network).');
-    // continue attempting loads even if navigator reports offline; some devices
-    // incorrectly set this flag or block preliminary requests.
   }
-  await initFirebaseClient();
+
+  // Skip Firebase initialization entirely in the current build.
   await initSupabaseClient();
+
+  const categoriesPromise = loadCategoriesPreview();
+  const productsPreviewPromise = loadProductsPreview(200);
+  const productsFullPromise = Promise.resolve([]);
+  const couponsPromise = loadCollectionFromFirestore('coupons', { select: 'id,code,type,value,start,end,active' });
+  const ordersPromise = (state.admin && state.admin.authenticated) ? loadCollectionFromFirestore('orders') : loadOrdersForCurrentUser();
+  const socialPromise = loadSocialSettings();
+  const cartPromise = loadFromFirestore('settings', 'cart');
+  const reviewImagesPromise = loadFromFirestore('settings', 'review_images');
+  const sliderImagesPromise = loadFromFirestore('settings', 'slider_images');
+  const shippingRatesPromise = loadFromFirestore('settings', 'shipping_rates');
+
+  categoriesPromise.then(savedCategoriesResult => {
+    if (Array.isArray(savedCategoriesResult) && savedCategoriesResult.length > 0) {
+      state.categories = savedCategoriesResult;
+      renderCategories();
+      populateCategorySelect();
+    }
+  }).catch(err => {
+    console.warn('Failed to load categories:', err?.message || err);
+  });
+
+  productsPreviewPromise.then(savedProductsResult => {
+    if (Array.isArray(savedProductsResult) && savedProductsResult.length > 0) {
+      state.products = savedProductsResult;
+      state.products.forEach(product => {
+        if (!product.category) product.category = 'أخرى';
+        if (!product.gallery) product.gallery = [];
+        if (product.available === undefined) product.available = true;
+      });
+      renderProducts();
+      const activeAdminTab = document.querySelector('.tab-btn.active');
+      if (adminPanel && !adminPanel.classList.contains('hidden') && activeAdminTab?.dataset.tab === 'products') {
+        renderAdminProducts(adminProductSearch, adminProductPage);
+      }
+    }
+  }).catch(err => {
+    console.warn('Failed to load product preview:', err?.message || err);
+  });
+
+  // Defer full product load until after initial UI appears.
+  setTimeout(async () => {
+    try {
+      const fullProductsResult = await loadAllProducts();
+      if (Array.isArray(fullProductsResult) && fullProductsResult.length > 0) {
+        const shouldUpdate = !Array.isArray(state.products)
+          || fullProductsResult.length !== state.products.length
+          || fullProductsResult.some((product, index) => !state.products[index] || product.id !== state.products[index].id);
+        if (shouldUpdate) {
+          state.products = fullProductsResult;
+          state.products.forEach(product => {
+            if (!product.category) product.category = 'أخرى';
+            if (!product.gallery) product.gallery = [];
+            if (product.available === undefined) product.available = true;
+          });
+          renderProducts();
+        }
+      }
+    } catch (err) {
+      console.warn('Deferred full product load failed:', err?.message || err);
+    }
+  }, 1200);
+
+  productsFullPromise.then(fullProductsResult => {
+    if (Array.isArray(fullProductsResult) && fullProductsResult.length > 0) {
+      const shouldUpdate = !Array.isArray(state.products)
+        || fullProductsResult.length !== state.products.length
+        || fullProductsResult.some((product, index) => !state.products[index] || product.id !== state.products[index].id);
+      if (shouldUpdate) {
+        state.products = fullProductsResult;
+        state.products.forEach(product => {
+          if (!product.category) product.category = 'أخرى';
+          if (!product.gallery) product.gallery = [];
+          if (product.available === undefined) product.available = true;
+        });
+        renderProducts();
+        const activeAdminTab = document.querySelector('.tab-btn.active');
+        if (adminPanel && !adminPanel.classList.contains('hidden') && activeAdminTab?.dataset.tab === 'products') {
+          renderAdminProducts(adminProductSearch, adminProductPage);
+        }
+      }
+    }
+  }).catch(err => {
+    console.warn('Failed to load all products:', err?.message || err);
+  });
+
+  ordersPromise.then(savedOrdersResult => {
+    if (Array.isArray(savedOrdersResult) && savedOrdersResult.length > 0) {
+      state.orders = savedOrdersResult;
+      normalizeOrderNumbers();
+      renderOrders();
+      if (window.currentAuthUser) {
+        renderUserOrders();
+      }
+      orderCount.textContent = state.orders.length;
+      adminOrderBadge.textContent = state.orders.length;
+    }
+  }).catch(err => {
+    console.warn('Failed to load orders:', err?.message || err);
+  });
+
+  socialPromise.then(savedSocialResult => {
+    if (savedSocialResult) {
+      state.social = savedSocialResult;
+      updateSocialLinksDisplay();
+    }
+  }).catch(err => {
+    console.warn('Failed to load social settings:', err?.message || err);
+  });
+
+  cartPromise.then(savedCartResult => {
+    if (savedCartResult) {
+      state.cart = savedCartResult.items || [];
+      renderCart();
+    }
+  }).catch(err => {
+    console.warn('Failed to load cart:', err?.message || err);
+  });
+
+  reviewImagesPromise.then(savedReviewImagesResult => {
+    if (savedReviewImagesResult) {
+      state.reviewImages = savedReviewImagesResult.images || [];
+      renderReviewImages();
+      renderReviewImagesPreview();
+    }
+  }).catch(err => {
+    console.warn('Failed to load review images:', err?.message || err);
+  });
+
+  sliderImagesPromise.then(savedSliderImagesResult => {
+    if (savedSliderImagesResult) {
+      state.sliderImages = (savedSliderImagesResult.images || []).map(normalizeSliderImage).filter(Boolean);
+      renderSliderImages();
+    }
+  }).catch(err => {
+    console.warn('Failed to load slider images:', err?.message || err);
+  });
+
+  shippingRatesPromise.then(savedShippingRatesResult => {
+    if (savedShippingRatesResult) {
+      const rates = savedShippingRatesResult.rates || savedShippingRatesResult.data?.rates || savedShippingRatesResult.value?.rates || savedShippingRatesResult;
+      if (rates && typeof rates === 'object') {
+        state.shippingRates = { ...state.shippingRates, ...rates };
+        populateGovernorateOptions();
+        renderShippingRates();
+      }
+    }
+  }).catch(err => {
+    console.warn('Failed to load shipping rates:', err?.message || err);
+  });
+
+  couponsPromise.then(savedCouponsResult => {
+    if (Array.isArray(savedCouponsResult) && savedCouponsResult.length > 0) {
+      state.coupons = savedCouponsResult;
+    }
+  }).catch(err => {
+    console.warn('Failed to load coupons:', err?.message || err);
+  });
+
+  Promise.allSettled([
+    categoriesPromise,
+    productsPreviewPromise,
+    productsFullPromise,
+    couponsPromise,
+    ordersPromise,
+    socialPromise,
+    cartPromise,
+    reviewImagesPromise,
+    sliderImagesPromise,
+    shippingRatesPromise
+  ]).then(() => {
+    initRealtimeSubscriptions();
+    console.log('Remote data loading finished');
+  });
+}
+
+async function registerPushNotifications() {
+  if (typeof window.Capacitor === 'undefined') return;
+
+  const isNative = typeof window.Capacitor.isNativePlatform === 'function'
+    ? window.Capacitor.isNativePlatform()
+    : false;
+  if (!isNative) return;
+
+  const PushNotifications = window.Capacitor.Plugins?.PushNotifications;
+  if (!PushNotifications) {
+    console.warn('PushNotifications plugin unavailable');
+    return;
+  }
+
   try {
-    const testRes = await testSupabaseConnection();
-    console.log('Supabase connection test:', testRes);
-  } catch (e) {
-    console.warn('Supabase connection test failed:', e);
-  }
-  console.log('Clients initialized, loading remote data...');
+    const permission = await PushNotifications.requestPermissions();
+    if (!permission || permission.receive !== 'granted') {
+      console.warn('Push notification permission not granted', permission);
+      return;
+    }
 
-  const savedSocial = await loadSocialSettings();
-  console.log('Loaded social settings:', savedSocial);
-  if (savedSocial) {
-    state.social = savedSocial;
-    updateSocialLinksDisplay();
-  }
+    await PushNotifications.register();
 
-  const savedProducts = await loadCollectionFromFirestore('products');
-  console.log('Loaded products from Supabase:', savedProducts.length, 'products');
-  if (savedProducts.length > 0) {
-    state.products = savedProducts;
-    state.products.forEach(product => {
-      if (!product.category) product.category = 'أخرى';
-      if (!product.gallery) product.gallery = [];
-      if (product.available === undefined) product.available = true;
+    PushNotifications.addListener('registration', token => {
+      console.log('Push registration token:', token.value);
     });
-    renderProducts();
-  }
 
-  const savedCategories = await loadCollectionFromFirestore('categories');
-  console.log('Loaded categories from Supabase:', savedCategories.length, 'categories');
-  if (savedCategories.length > 0) {
-    state.categories = savedCategories;
-    renderCategories();
-    populateCategorySelect();
-  }
+    PushNotifications.addListener('registrationError', err => {
+      console.error('Push registration error:', err);
+    });
 
-  const savedOrders = await loadCollectionFromFirestore('orders');
-  console.log('Loaded orders from Supabase:', savedOrders.length, 'orders');
-  if (savedOrders.length > 0) {
-    state.orders = savedOrders;
-    normalizeOrderNumbers();
-    saveCollectionToFirestore('orders', state.orders);
-    renderOrders();
-    orderCount.textContent = state.orders.length;
-    adminOrderBadge.textContent = state.orders.length;
-  }
+    PushNotifications.addListener('pushNotificationReceived', notification => {
+      console.log('Push notification received:', notification);
+    });
 
-  const savedCart = await loadFromFirestore('settings', 'cart');
-  console.log('Loaded cart from Supabase:', savedCart);
-  if (savedCart) {
-    state.cart = savedCart.items || [];
-    renderCart();
+    PushNotifications.addListener('pushNotificationActionPerformed', action => {
+      console.log('Push notification action performed:', action);
+    });
+  } catch (err) {
+    console.warn('Push notification setup failed:', err);
   }
-
-  const savedReviewImages = await loadFromFirestore('settings', 'review_images');
-  console.log('Loaded review images from Supabase:', savedReviewImages);
-  if (savedReviewImages) {
-    state.reviewImages = savedReviewImages.images || [];
-    renderReviewImages();
-    renderReviewImagesPreview();
-  }
-
-  const savedShippingRates = await loadFromFirestore('settings', 'shipping_rates');
-  console.log('Loaded shipping rates from Supabase:', savedShippingRates);
-  if (savedShippingRates) {
-    state.shippingRates = { ...state.shippingRates, ...savedShippingRates.rates };
-  }
-
-  const savedCoupons = await loadCollectionFromFirestore('coupons');
-  console.log('Loaded coupons from Supabase:', savedCoupons.length, 'coupons');
-  if (savedCoupons.length > 0) {
-    state.coupons = savedCoupons;
-  }
-
-  initRealtimeSubscriptions();
-  console.log('Remote data loading finished');
 }
 
 window.addEventListener('hashchange', handleHashChange);
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   try {
     renderProducts();
     renderCart();
     renderReviewImages();
     renderReviewImagesPreview();
+    renderSliderImages();
     renderOrders();
     renderCategories();
     populateCategorySelect();
@@ -2408,9 +3398,11 @@ window.addEventListener('DOMContentLoaded', () => {
     updateSocialLinksDisplay();
     restoreAuthState();
     if (!window.location.hash) window.location.hash = '#home';
+    restoreTheme();
     handleHashChange();
 
     loadRemoteData();
+    await registerPushNotifications();
   } catch (err) {
     console.error('Error during DOMContentLoaded initialization:', err?.message || err);
   }
@@ -2441,14 +3433,18 @@ function addNewGovernorate() {
   }
 }
 
-function saveShippingRates() {
+async function saveShippingRates() {
   const inputs = document.querySelectorAll('#shipping-rates-list input');
   inputs.forEach(input => {
     const gov = input.dataset.gov;
     const price = parseFloat(input.value) || 0;
     state.shippingRates[gov] = price;
   });
-  saveToFirestore('settings', 'shipping_rates', { rates: state.shippingRates });
+  const saved = await saveToFirestore('settings', 'shipping_rates', { rates: state.shippingRates });
+  if (!saved) {
+    alert('حدث خطأ أثناء حفظ أسعار الشحن. جرب مرة أخرى.');
+    return;
+  }
   alert('تم حفظ أسعار الشحن بنجاح!');
 }
 
@@ -2463,6 +3459,10 @@ window.switchAdminTab = switchAdminTab;
 window.updateSocialLinks = updateSocialLinks;
 window.addReviewImage = addReviewImage;
 window.deleteReviewImage = deleteReviewImage;
+window.previewSliderImages = previewSliderImages;
+window.toggleSliderImageSelection = toggleSliderImageSelection;
+window.removeSliderImage = removeSliderImage;
+window.openSliderImagePicker = openSliderImagePicker;
 window.addOrUpdateCategory = addOrUpdateCategory;
 window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
@@ -2478,10 +3478,53 @@ window.buyNow = buyNow;
 window.renderShippingRates = renderShippingRates;
 window.addNewGovernorate = addNewGovernorate;
 window.saveShippingRates = saveShippingRates;
+
+const bindCategoryForm = () => {
+  const categoryForm = document.getElementById('category-form');
+  if (categoryForm && !categoryForm.dataset.bound) {
+    categoryForm.addEventListener('submit', addOrUpdateCategory);
+    categoryForm.dataset.bound = 'true';
+  }
+};
+
+const THEME_STORAGE_KEY = 'farfashaTheme';
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
+function applyTheme(theme) {
+  const darkMode = theme === 'dark';
+  document.body.classList.toggle('theme-dark', darkMode);
+  document.body.classList.toggle('theme-light', !darkMode);
+  if (themeToggleBtn) {
+    themeToggleBtn.textContent = darkMode ? '☀️ الوضع النهاري' : '🌙 الوضع الليلي';
+  }
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+function toggleTheme(e) {
+  if (e) e.preventDefault();
+  const isDark = document.body.classList.contains('theme-dark');
+  applyTheme(isDark ? 'light' : 'dark');
+}
+
+function restoreTheme() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(savedTheme === 'dark' || (!savedTheme && prefersDark) ? 'dark' : 'light');
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', toggleTheme);
+  themeToggleBtn.textContent = '🌙 الوضع الليلي';
+}
+
+window.addEventListener('DOMContentLoaded', bindCategoryForm);
+bindCategoryForm();
 window.switchAuthTab = switchAuthTab;
+window.switchProfileTab = switchProfileTab;
 window.loginUser = loginUser;
 window.registerUser = registerUser;
 window.logoutUser = logoutUser;
+window.saveUserProfile = saveUserProfile;
 
 function showAuthMessage(text, success = false) {
   const message = document.getElementById('auth-message');
@@ -2504,6 +3547,26 @@ function persistAuthUser(user) {
   } else {
     localStorage.removeItem('farfashaAuthUser');
   }
+  // Prefill checkout email if visible/available
+  try {
+    prefillCheckoutEmail();
+  } catch (e) {
+    console.warn('persistAuthUser prefill failed', e?.message || e);
+  }
+}
+
+function prefillCheckoutEmail() {
+  try {
+    const emailInput = document.querySelector('input[name="email"]');
+    const authUser = window.currentAuthUser || null;
+    if (emailInput) {
+      if (authUser && authUser.email) {
+        emailInput.value = authUser.email;
+      }
+    }
+  } catch (err) {
+    console.warn('prefillCheckoutEmail error', err?.message || err);
+  }
 }
 
 function restoreAuthState() {
@@ -2514,9 +3577,29 @@ function restoreAuthState() {
   }
   try {
     const user = JSON.parse(raw);
+    console.log('restoreAuthState user:', user);
     if (user && user.email) {
       window.currentAuthUser = user;
       showAuthContent(true, user);
+      try { prefillCheckoutEmail(); } catch (e) {}
+      // After restoring auth, ensure we load latest orders for the current user from the server
+      (async () => {
+        try {
+          console.log('restoreAuthState: loading user orders from server for user', user.id);
+          const remoteOrders = await loadOrdersForCurrentUser();
+          if (Array.isArray(remoteOrders)) {
+            state.orders = remoteOrders;
+            normalizeOrderNumbers();
+            renderOrders();
+            renderUserOrders();
+            orderCount.textContent = state.orders.length;
+            adminOrderBadge.textContent = state.orders.length;
+            console.log('restoreAuthState: loaded user orders count', state.orders.length);
+          }
+        } catch (err) {
+          console.warn('restoreAuthState: failed to load user orders', err?.message || err);
+        }
+      })();
       return;
     }
   } catch (err) {
@@ -2545,11 +3628,30 @@ function showAuthContent(isLoggedIn, user) {
     if (avatar) avatar.textContent = user.fullName ? user.fullName.trim().slice(0, 1).toUpperCase() : user.email.slice(0, 1).toUpperCase();
     if (nameEl) nameEl.textContent = user.fullName || 'المستخدم';
     if (emailEl) emailEl.textContent = user.email || '';
-    if (noteEl) noteEl.textContent = 'صفحة شخصية تجريبية. سيتم إعدادها لاحقًا حسب حسابك.';
+    if (noteEl) noteEl.textContent = 'يمكنك تعديل بياناتك الشخصية وحفظها هنا.';
+    const profileFullName = document.getElementById('profile-fullname');
+    const profileEmailInput = document.getElementById('profile-email-input');
+    const profilePhone = document.getElementById('profile-phone');
+    const profileMsg = document.getElementById('profile-message');
+    if (profileFullName) profileFullName.value = user.fullName || '';
+    if (profileEmailInput) profileEmailInput.value = user.email || '';
+    if (profilePhone) profilePhone.value = user.phone || '';
+    if (profileMsg) profileMsg.classList.add('hidden');
+    switchProfileTab('info');
+    renderUserOrders();
   } else {
     authTabs?.classList.remove('hidden');
     authPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.auth === 'login'));
-    profilePanel?.classList.add('hidden');
+    // Ensure profile panel and its tabs are fully hidden and reset when logged out
+    if (profilePanel) {
+      profilePanel.classList.add('hidden');
+      // hide internal profile panels and reset tabs
+      document.querySelectorAll('.profile-panel').forEach(p => {
+        p.classList.add('hidden');
+        p.classList.remove('active');
+      });
+      document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+    }
     const loginTab = document.querySelector('.auth-tab[data-auth="login"]');
     const registerTab = document.querySelector('.auth-tab[data-auth="register"]');
     if (loginTab) loginTab.classList.add('active');
@@ -2592,6 +3694,112 @@ function switchAuthTab(tab) {
   hideAuthMessage();
 }
 
+function switchProfileTab(tab) {
+  document.querySelectorAll('.profile-tab').forEach(button => {
+    button.classList.toggle('active', button.dataset.tab === tab);
+  });
+  document.querySelectorAll('.profile-panel').forEach(panel => {
+    panel.classList.toggle('hidden', panel.dataset.panel !== tab);
+    panel.classList.toggle('active', panel.dataset.panel === tab);
+  });
+  const profileMsg = document.getElementById('profile-message');
+  if (profileMsg) profileMsg.classList.add('hidden');
+  if (tab === 'orders') {
+    renderUserOrders();
+  }
+}
+
+function renderUserOrders() {
+  if (!userOrdersList) return;
+  const user = window.currentAuthUser || {};
+  const currentId = user.id || null;
+  const currentEmail = String(user.email || '').toLowerCase().trim();
+  const currentPhone = String(user.phone || '').replace(/\D/g, '');
+  let matchingOrders = state.orders.filter(order => {
+    const orderUserId = order.user_id || null;
+    const orderEmail = String(order.user_email || '').toLowerCase().trim();
+    const orderEmailFallback = String(order.customer || '').toLowerCase().trim();
+    const orderPhone = String(order.phone || '').replace(/\D/g, '');
+    if (currentId && orderUserId && String(currentId) === String(orderUserId)) return true;
+    if (currentEmail && orderEmail && currentEmail === orderEmail) return true;
+    if (currentEmail && orderEmailFallback.includes(currentEmail)) return true;
+    if (currentPhone && orderPhone && currentPhone === orderPhone) return true;
+    return false;
+  });
+  matchingOrders = matchingOrders.sort((a, b) => {
+    const aDate = a.createdAt ? new Date(a.createdAt) : new Date(a.date || 0);
+    const bDate = b.createdAt ? new Date(b.createdAt) : new Date(b.date || 0);
+    return bDate - aDate;
+  });
+  // renderUserOrders: assemble matching orders for the current user
+  if (!matchingOrders.length) {
+    userOrdersList.innerHTML = '<div class="alert">لا توجد طلبات حالياً. ستظهر طلباتك هنا بعد الإتمام.</div>';
+    return;
+  }
+  userOrdersList.innerHTML = matchingOrders.map(order => {
+    const detailsText = order.notes ? order.notes : 'لا توجد ملاحظات';
+    const status = (order.status || 'new');
+    const statusClass = `status-${status}`;
+    const statusLevelMap = { new: 0, accepted: 1, shipped: 2, delivered: 3 };
+    const level = status === 'cancelled' ? 0 : statusLevelMap[status] || 0;
+    return `
+      <article class="order-card ${statusClass}" id="user-order-card-${order.id}">
+        <div class="order-body">
+          <div class="order-top-row">
+            <div class="order-header-info">
+              <div class="order-progress" aria-hidden="true">
+                <div class="labels">
+                  <span>قبول الطلب</span>
+                  <span>شحن الطلب</span>
+                  <span>تسليم الطلب</span>
+                </div>
+                <div class="track">
+                  <div class="step ${level >= 1 ? 'active' : ''}" data-step="accepted"></div>
+                  <div class="line ${level >= 2 ? 'active' : ''}"></div>
+                  <div class="step ${level >= 2 ? 'active' : ''}" data-step="shipped"></div>
+                  <div class="line ${level >= 3 ? 'active' : ''}"></div>
+                  <div class="step ${level >= 3 ? 'active' : ''}" data-step="delivered"></div>
+                  <div class="final-icon" title="موقع الطلب">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 10c0 6-9 13-9 13S3 16 3 10a9 9 0 1 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <h3>طلب #${order.orderNumber}</h3>
+              ${status === 'cancelled' ? '<span class="order-badge order-badge-cancelled">ملغى</span>' : ''}
+              <p class="order-meta-row">تاريخ الطلب: ${order.date || 'غير معروف'}</p>
+            </div>
+            <div class="order-meta-row">
+              <span class="price-tag">${formatPrice(order.total || 0)}</span>
+            </div>
+          </div>
+          <p class="order-notes">${detailsText}</p>
+          <div class="order-details" id="order-detail-${order.id}">
+            <div class="order-detail-head">
+              <span>الصورة</span>
+              <span>الاسم</span>
+              <span>السعر</span>
+              <span>الكمية</span>
+              <span>الإجمالي</span>
+            </div>
+            ${order.items.map(item => `
+              <div class="order-detail-row">
+                <div class="detail-image"><img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}" class="order-item-image"></div>
+                <span class="detail-name">${item.name}</span>
+                <span class="detail-cell">${formatPrice(item.price || 0)}</span>
+                <span class="detail-cell">${item.qty}</span>
+                <span class="detail-cell">${formatPrice((item.price || 0) * item.qty)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
 async function loginUser(event) {
   event.preventDefault();
   const email = document.getElementById('login-email').value.trim();
@@ -2618,9 +3826,52 @@ async function loginUser(event) {
     persistAuthUser(currentUser);
     showAuthMessage('✅ تم تسجيل الدخول بنجاح.', true);
     showAuthContent(true, currentUser);
+    await refreshOrdersForCurrentUser();
   } catch (err) {
     showAuthMessage(err.message || 'حدث خطأ أثناء تسجيل الدخول.');
   }
+}
+
+async function saveUserProfile(event) {
+  event.preventDefault();
+  const user = window.currentAuthUser;
+  if (!user || !user.id) {
+    showProfileMessage('لم يتم العثور على بيانات المستخدم. الرجاء تسجيل الدخول مرة أخرى.');
+    return;
+  }
+  const fullName = document.getElementById('profile-fullname')?.value.trim();
+  const phone = document.getElementById('profile-phone')?.value.trim();
+  if (!fullName) {
+    showProfileMessage('يرجى إدخال الاسم الكامل.');
+    return;
+  }
+  try {
+    const profileResult = await upsertProfileRow(user.id, fullName, phone, user.email);
+    if (profileResult?.error) {
+      console.warn('Failed to save profile', profileResult.error);
+      showProfileMessage('حدث خطأ أثناء حفظ البيانات. حاول لاحقًا.');
+      return;
+    }
+    const updatedUser = {
+      ...user,
+      fullName,
+      phone
+    };
+    persistAuthUser(updatedUser);
+    showProfileMessage('✅ تم حفظ بيانات الحساب بنجاح.', true);
+    showAuthContent(true, updatedUser);
+  } catch (error) {
+    console.error('saveUserProfile failed', error);
+    showProfileMessage('حدث خطأ أثناء حفظ البيانات. حاول مرة أخرى.');
+  }
+}
+
+function showProfileMessage(text, success = false) {
+  const profileMsg = document.getElementById('profile-message');
+  if (!profileMsg) return;
+  profileMsg.textContent = text;
+  profileMsg.classList.remove('hidden');
+  profileMsg.style.color = success ? '#0b6623' : '#d7263d';
 }
 
 async function registerUser(event) {
@@ -2666,7 +3917,14 @@ async function registerUser(event) {
 
 function logoutUser() {
   persistAuthUser(null);
+  // explicitly reset UI pieces for auth/profile
   showAuthContent(false);
   hideAuthMessage();
+  // clear profile form fields
+  try {
+    const pf = document.getElementById('profile-fullname'); if (pf) pf.value = '';
+    const pe = document.getElementById('profile-email-input'); if (pe) pe.value = '';
+    const pp = document.getElementById('profile-phone'); if (pp) pp.value = '';
+  } catch (e) { /* ignore */ }
   window.location.hash = '#auth';
 }
