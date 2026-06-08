@@ -1,0 +1,52 @@
+name: Android CI Build
+
+on:
+  push:
+    branches: [ main, feature/auth-profile ]
+  pull_request:
+    branches: [ main, feature/auth-profile ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Install Android SDK command-line tools
+      run: |
+        mkdir -p "$RUNNER_TEMP/android-sdk"
+        export ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk"
+        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+        curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-9123335_latest.zip -o /tmp/cmdline-tools.zip
+        unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+        mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools"/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
+        rm /tmp/cmdline-tools.zip
+        yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+    - name: Accept Android SDK licenses
+      run: |
+        export ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk"
+        yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses
+
+    - name: Make Gradle wrapper executable
+      run: chmod +x android/gradlew
+
+    - name: Build Debug APK
+      working-directory: android
+      run: ./gradlew assembleDebug --no-daemon
+
+    - name: Upload debug APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FARFASHA-debug-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
