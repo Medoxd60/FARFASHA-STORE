@@ -38,8 +38,24 @@ jobs:
         export ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk"
         yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
+    - name: Show repository files (debug)
+      run: |
+        echo "Repository root: $(pwd)"
+        echo 'Root listing:'
+        ls -la || true
+        echo 'Android dir listing:'
+        ls -la android || true
+
     - name: Make Gradle wrapper executable
-      run: chmod +x android/gradlew
+      run: |
+        if [ -f android/gradlew ]; then
+          chmod +x android/gradlew
+        else
+          echo "ERROR: android/gradlew not found"
+          ls -la
+          ls -la android || true
+          exit 1
+        fi
 
     - name: Build Debug APK
       working-directory: android
