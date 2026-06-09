@@ -46,13 +46,22 @@ jobs:
         echo 'Android dir listing:'
         ls -la android || true
 
-    - name: Make Gradle wrapper executable
+    - name: Make Gradle wrapper executable (try android/gradlew then root ./gradlew)
       run: |
+        echo "Checking for gradlew in android/ and project root"
         if [ -f android/gradlew ]; then
+          echo "Found android/gradlew"
           chmod +x android/gradlew
+          echo "Using android/gradlew"
+        elif [ -f ./gradlew ]; then
+          echo "Found root gradlew"
+          chmod +x ./gradlew
+          echo "Using ./gradlew"
         else
-          echo "ERROR: android/gradlew not found"
-          ls -la
+          echo "ERROR: gradlew not found in android/ or project root"
+          echo 'Root listing:'
+          ls -la || true
+          echo 'Android dir listing:'
           ls -la android || true
           exit 1
         fi
