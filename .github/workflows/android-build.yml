@@ -27,8 +27,7 @@ jobs:
 
     - name: Install Android SDK command-line tools
       run: |
-        mkdir -p "$RUNNER_TEMP/android-sdk"
-        export ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk"
+        mkdir -p "$ANDROID_SDK_ROOT"
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
         curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-9123335_latest.zip -o /tmp/cmdline-tools.zip
         unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
@@ -39,7 +38,6 @@ jobs:
 
     - name: Accept Android SDK licenses
       run: |
-        export ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk"
         yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
     - name: Show repository files (debug)
@@ -72,7 +70,11 @@ jobs:
 
     - name: Build Debug APK
       working-directory: android
-      run: ./gradlew assembleDebug --no-daemon
+      run: |
+        export ANDROID_SDK_ROOT="${{ env.ANDROID_SDK_ROOT }}"
+        export ANDROID_HOME="${{ env.ANDROID_HOME }}"
+        export GRADLE_USER_HOME="${{ env.GRADLE_USER_HOME }}"
+        ./gradlew assembleDebug --no-daemon
 
     - name: Upload debug APK artifact
       uses: actions/upload-artifact@v4
