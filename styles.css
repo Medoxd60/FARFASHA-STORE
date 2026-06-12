@@ -289,6 +289,16 @@ main {
 body.splash-active{
   overflow: hidden !important;
 }
+
+
+body.splash-active header{
+  display: none !important;
+}
+body.splash-active .bottom-nav{
+  display: none !important;
+}
+
+
 @media (max-width: 768px){
   /* splash visibility controlled by JS to avoid black flash */
 }
