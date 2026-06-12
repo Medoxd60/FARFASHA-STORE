@@ -10,6 +10,29 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+   <!-- Splash video (mobile only) -->
+  <video id="splash" autoplay muted playsinline preload="auto" poster="assets/videos/splash-poster.jpg">
+    <source src="assets/videos/splash.mp4" type="video/mp4">
+    <source src="assets/videos/splash.webm" type="video/webm">
+  </video>
+  <script>
+  (function(){
+    const splash = document.getElementById('splash');
+    if(!splash) return;
+    const isMobile = window.matchMedia('(max-width:768px)').matches;
+    if(!isMobile){ splash.style.display = 'none'; return; }
+    document.body.classList.add('splash-active');
+    function hideSplash(){ if(!splash) return; splash.classList.add('hidden'); document.body.classList.remove('splash-active'); setTimeout(()=>{ try{ splash.remove(); }catch(e){} },400); }
+    splash.addEventListener('ended', hideSplash);
+    // Fallback timeout in case autoplay blocked or user device pauses
+    setTimeout(hideSplash, 3500);
+    splash.play().catch(()=>{ setTimeout(hideSplash, 1000); });
+  })();
+  </script>
+
+
+  
   <header>
     <div class="navbar">
       <a class="brand" href="#home"><span>FASHA</span>FAR</a>
