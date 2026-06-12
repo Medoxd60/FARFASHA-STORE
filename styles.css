@@ -290,7 +290,7 @@ body.splash-active{
   overflow: hidden !important;
 }
 @media (max-width: 768px){
-  #splash{ display: block; }
+  /* splash visibility controlled by JS to avoid black flash */
 }
 
 /* Slider image grid styles (kept outside body to avoid CSS parse errors) */
