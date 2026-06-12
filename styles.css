@@ -1211,7 +1211,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 32px;
   overflow: visible;
   position: relative;
-  padding: 92px 18px 18px;
+  padding: 92px 18px 40px;
   min-height: 470px;
   max-width: 46vw;
   width: 100%;
