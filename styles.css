@@ -1496,6 +1496,23 @@ h1, h2, h3, h4, h5, h6 {
     gap: 18px;
   }
 
+  .review-card {
+  --review-frame-width: min(320px, calc(100% - 36px));
+  --review-frame-height: 380px;
+  background: rgba(255, 125, 0, .08);
+  border: 3px solid rgba(255, 125, 0, .35);
+  border-radius: 32px;
+  overflow: visible;
+  position: relative;
+  padding: 92px 18px 40px;
+  min-height: 470px;
+  max-width: 46vw;
+  width: 100%;
+  margin: 0 auto;
+  background: rgba(255, 74, 168, .08);
+  border: 3px solid rgba(249, 63, 153, 0.35);
+}
+
   .review-grid > .review-card {
     width: 90%;
     max-width: 90%;
