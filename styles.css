@@ -1477,9 +1477,9 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .review-grid > .review-card {
-    scroll-snap-align: start;
-    width: 100%;
-    max-width: none;
+    width: 90%;
+    max-width: 90%;
+    min-width: 90%;
   }
 
   #review-images-preview.cards-grid {
