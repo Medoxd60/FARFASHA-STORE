@@ -2147,13 +2147,12 @@ h1, h2, h3, h4, h5, h6 {
 
 
 .price-tag {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 10px;
-  min-width: auto;
+  width: 100%;
   max-width: 100%;
-  white-space: nowrap;
   background: rgba(255,74,168,.12);
   color: var(--accent);
   padding: 10px 14px;
@@ -2169,7 +2168,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .price-tag > span {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   text-align: center;
   font-size: 0.97rem;
