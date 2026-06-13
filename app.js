@@ -3065,9 +3065,28 @@ async function updateSocialLinks(event) {
 }
 
 function updateSocialLinksDisplay() {
-  document.getElementById('telegram-link').href = state.social.telegram || '#';
-  document.getElementById('whatsapp-link').href = state.social.whatsapp || '#';
-  document.getElementById('facebook-link').href = state.social.facebook || '#';
+  const telegramLink = document.getElementById('telegram-link');
+  const whatsappLink = document.getElementById('whatsapp-link');
+  const facebookLink = document.getElementById('facebook-link');
+
+  const setLink = (element, url) => {
+    const href = url && url !== '#' ? url : '#';
+    element.href = href;
+    element.style.pointerEvents = href === '#' ? 'none' : 'auto';
+    if (href === '#') {
+      element.target = '_self';
+      element.removeAttribute('rel');
+      element.setAttribute('aria-disabled', 'true');
+    } else {
+      element.target = '_blank';
+      element.rel = 'noopener noreferrer';
+      element.removeAttribute('aria-disabled');
+    }
+  };
+
+  setLink(telegramLink, state.social.telegram);
+  setLink(whatsappLink, state.social.whatsapp);
+  setLink(facebookLink, state.social.facebook);
 }
 
 function switchAdminTab(event) {
