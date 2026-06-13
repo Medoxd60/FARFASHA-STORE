@@ -3281,9 +3281,15 @@ h1, h2, h3, h4, h5, h6 {
     padding: 10px 16px calc(120px + env(safe-area-inset-bottom, 0));
   }
 
-    .hero-slider,
+   .hero-slider,
   .home-slider {
     min-height: 200px;
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden;
   }
 
   /* Mobile: ensure review section shows 2 cards in viewport */
