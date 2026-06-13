@@ -268,7 +268,6 @@ main {
   padding: 0 10px 100px;
 }
 
-
 /* Splash video - mobile only */
 #splash{
   position: fixed;
@@ -285,20 +284,16 @@ main {
   transition: opacity .28s ease;
   pointer-events: none;
 }
-/* prevent body scroll while splash active */
+/* prevent body scroll while splash active and hide header/bottom-nav */
 body.splash-active{
   overflow: hidden !important;
 }
-
-
 body.splash-active header{
   display: none !important;
 }
 body.splash-active .bottom-nav{
   display: none !important;
 }
-
-
 @media (max-width: 768px){
   /* splash visibility controlled by JS to avoid black flash */
 }
@@ -686,8 +681,8 @@ header {
   left: 0;
   right: 0;
   z-index: 10005;
-  width: 100vw;
-  max-width: 100vw;
+  width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
   backdrop-filter: blur(18px);
   background: rgba(255,255,255,.92);
@@ -704,32 +699,70 @@ body.theme-dark header {
 .navbar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 18px;
-  padding: 18px 24px;
-  width: 100vw;
-  max-width: 100vw;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   direction: rtl;
   min-width: 0;
-  overflow-x: hidden;
+  overflow: visible;
   position: relative;
+  flex-wrap: nowrap;
 }
 
 .navbar-links {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
   margin-right: auto;
   direction: rtl;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .navbar-links a {
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 0.92rem;
   text-decoration: none;
   transition: color .2s ease;
   cursor: pointer;
+  padding: 4px 6px;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.98rem;
+  font-weight: 800;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  color: var(--text);
+  transition: color .2s ease;
+}
+
+@media (max-width: 520px) {
+  .navbar { padding: 8px 10px; gap: 6px; }
+  .navbar-links { gap: 8px; }
+  .navbar-links a { font-size: 0.84rem; padding: 4px 4px; }
+  .brand { font-size: 0.92rem; }
+}
+
+@media (max-width: 420px) {
+  .navbar { padding: 8px 10px; gap: 6px; }
+  .navbar-links { gap: 6px; }
+  .navbar-links a { font-size: 0.78rem; padding: 3px 4px; }
+  .brand { font-size: 0.88rem; }
+  header { padding-right: 6px; padding-left: 6px; }
 }
 
 .navbar-links a:hover,
@@ -744,22 +777,6 @@ body.theme-dark .navbar-links a {
 body.theme-dark .navbar-links a:hover,
 body.theme-dark .navbar-links a:focus {
   color: #f8f8ff;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 1.2rem;
-  font-weight: 800;
-  white-space: nowrap;
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-decoration: none;
-  color: var(--text);
-  transition: color .2s ease;
 }
 
 .brand:hover {
@@ -781,8 +798,8 @@ body.theme-dark .brand:hover {
 .menu {
   display: flex;
   align-items: center;
-  gap: 22px;
-  flex-wrap: wrap;
+  gap: 18px;
+  flex-wrap: nowrap; /* keep menu items on one line */
   direction: rtl;
 }
 
@@ -793,9 +810,13 @@ body.theme-dark .brand:hover {
 .menu a,
 .menu button {
   color: var(--text-muted);
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   text-decoration: none;
   transition: color .2s ease, background .2s ease;
+}
+
+@media (max-width: 420px) {
+  .menu { gap: 10px; }
 }
 
 .menu a:hover,
@@ -964,6 +985,10 @@ h1, h2, h3, h4, h5, h6 {
   inset: 0;
   opacity: 0;
   transition: opacity .6s ease;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0;
 }
 
 .home-slide.active {
@@ -974,6 +999,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center bottom;
   display: block;
 }
 
@@ -1246,8 +1272,8 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 32px;
   overflow: visible;
   position: relative;
-  padding: 92px 18px 40px;
-  min-height: 470px;
+  padding: 92px 18px 100px;
+  min-height: 480px;
   max-width: 46vw;
   width: 100%;
   margin: 0 auto;
@@ -1512,9 +1538,9 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .review-grid > .review-card {
-    width: 90%;
-    max-width: 90%;
-    min-width: 90%;
+    scroll-snap-align: start;
+    width: 100%;
+    max-width: none;
   }
 
   #review-images-preview.cards-grid {
@@ -1530,23 +1556,6 @@ h1, h2, h3, h4, h5, h6 {
     grid-auto-columns: 100vw;
     gap: 18px;
   }
-
-  .review-card {
-  --review-frame-width: min(320px, calc(100% - 36px));
-  --review-frame-height: 380px;
-  background: rgba(255, 125, 0, .08);
-  border: 3px solid rgba(255, 125, 0, .35);
-  border-radius: 32px;
-  overflow: visible;
-  position: relative;
-  padding: 92px 18px 40px;
-  min-height: 470px;
-  max-width: 46vw;
-  width: 100%;
-  margin: 0 auto;
-  background: rgba(255, 74, 168, .08);
-  border: 3px solid rgba(249, 63, 153, 0.35);
-}
 
   .review-grid > .review-card {
     width: 90%;
@@ -2145,14 +2154,35 @@ h1, h2, h3, h4, h5, h6 {
   
 }
 
+@media (max-width: 520px) {
+  /* Mobile: tighten price-tag and keep layout inline with details button */
+  .product-meta {
+    gap: 8px;
+    align-items: center;
+  }
+
+  .price-tag {
+    max-width: calc(100% - 110px) !important;
+    padding: 8px 10px;
+    gap: 8px;
+    font-size: 0.92rem;
+  }
+
+  .price-tag > span {
+    font-size: 0.92rem;
+  }
+}
+
 
 .price-tag {
   display: flex;
+  flex-direction: row-reverse; /* place first span on the right for RTL layout */
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  width: 100%;
-  max-width: 100%;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: calc(100% - 140px); /* leave space for the details button */
   background: rgba(255,74,168,.12);
   color: var(--accent);
   padding: 10px 14px;
@@ -2161,10 +2191,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .product-meta .btn {
-  min-width: 150px;
-  padding: 12px 16px;
+  min-width: 120px;
+  padding: 12px 14px;
   font-size: 0.95rem;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .price-tag > span {
@@ -2227,6 +2258,14 @@ h1, h2, h3, h4, h5, h6 {
 .order-card button,
 .admin-card button {
   width: 100%;
+}
+
+/* Ensure product-meta buttons don't expand full width and remain next to price-tag */
+.product-meta button,
+.product-meta .secondary-btn,
+.product-meta .btn {
+  width: auto !important;
+  flex: 0 0 auto;
 }
 
 .image-upload-section {
@@ -3281,13 +3320,19 @@ h1, h2, h3, h4, h5, h6 {
     padding: 10px 16px calc(120px + env(safe-area-inset-bottom, 0));
   }
 
-   .hero-slider,
+  section#section-home {
+    padding-top: 0;
+  }
+
+  .hero-slider,
   .home-slider {
-    min-height: 200px;
+    position: relative;
+    min-height: 300px;
     width: 100vw;
     max-width: 100vw;
     margin-left: calc(50% - 50vw);
     margin-right: calc(50% - 50vw);
+    top: -50px;
     border-radius: 0 0 var(--radius) var(--radius);
     overflow: hidden;
   }
