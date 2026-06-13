@@ -3281,8 +3281,9 @@ h1, h2, h3, h4, h5, h6 {
     padding: 10px 16px calc(120px + env(safe-area-inset-bottom, 0));
   }
 
-  .hero-slider {
-    min-height: 300px;
+    .hero-slider,
+  .home-slider {
+    min-height: 200px;
   }
 
   /* Mobile: ensure review section shows 2 cards in viewport */
