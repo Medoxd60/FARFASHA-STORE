@@ -961,10 +961,10 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 26px;
 }
 
-..hero-slider {
-  width: calc(100% + 20px);
+.hero-slider {
+  width: 100%;
   min-height: 260px;
-  margin: 0 -10px 24px;
+  margin-bottom: 24px;
   border-radius: var(--radius);
   overflow: hidden;
   background: #fff;
@@ -986,9 +986,8 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0;
   transition: opacity .6s ease;
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: center;
-  padding-bottom: 0;
 }
 
 .home-slide.active {
@@ -998,7 +997,9 @@ h1, h2, h3, h4, h5, h6 {
 .home-slide img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  min-width: 100%;
+  min-height: 100%;
+  object-fit: cover;
   object-position: center bottom;
   display: block;
 }
@@ -3335,6 +3336,20 @@ h1, h2, h3, h4, h5, h6 {
     top: -50px;
     border-radius: 0 0 var(--radius) var(--radius);
     overflow: hidden;
+  }
+
+  .home-slide {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 0;
+  }
+
+  .home-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center bottom;
   }
 
   /* Mobile: ensure review section shows 2 cards in viewport */
