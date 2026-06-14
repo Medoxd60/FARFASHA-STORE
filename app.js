@@ -918,6 +918,34 @@ async function saveToFirestore(collectionName, docId, data) {
   return false;
 }
 
+// Persist cart locally per-user (or per-browser for guests) to avoid leaking cart
+function saveCartState() {
+  try {
+    const user = window.currentAuthUser || null;
+    const key = user && user.id ? `farfashaCart_${user.id}` : 'farfashaCart_guest';
+    localStorage.setItem(key, JSON.stringify({ items: state.cart || [] }));
+    return true;
+  } catch (e) {
+    console.warn('saveCartState failed', e?.message || e);
+    return false;
+  }
+}
+
+function loadCartState() {
+  try {
+    const user = window.currentAuthUser || null;
+    const key = user && user.id ? `farfashaCart_${user.id}` : 'farfashaCart_guest';
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.items)) return parsed;
+    return null;
+  } catch (e) {
+    console.warn('loadCartState failed', e?.message || e);
+    return null;
+  }
+}
+
 async function loadFromFirestore(collectionName, docId) {
   if (collectionName !== 'settings') return null;
 
@@ -2489,7 +2517,7 @@ function updateCartQuantity(productId, delta) {
   if (item.quantity < 1) {
     state.cart = state.cart.filter(i => i.id !== productId);
   }
-  saveToFirestore('settings', 'cart', { items: state.cart });
+  saveCartState();
   renderCart();
 }
 
@@ -2503,14 +2531,14 @@ function addToCart(productId) {
   const existing = state.cart.find(item => item.id === productId);
   if (existing) existing.quantity += 1;
   else state.cart.push({ ...product, quantity: 1 });
-  saveToFirestore('settings', 'cart', { items: state.cart });
+  saveCartState();
   renderCart();
   alert('✅ المنتج اتضاف للسلة');
 }
 
 function removeFromCart(productId) {
   state.cart = state.cart.filter(item => item.id !== productId);
-  saveToFirestore('settings', 'cart', { items: state.cart });
+  saveCartState();
   renderCart();
 }
 
@@ -2631,7 +2659,7 @@ async function submitOrder(event) {
   state.orders.unshift(order);
   saveCollectionToFirestore('orders', [order]);
   state.cart = [];
-  saveToFirestore('settings', 'cart', { items: state.cart });
+  saveCartState();
   renderCart();
   event.target.reset();
   confirmMessage.classList.remove('hidden');
@@ -3168,7 +3196,7 @@ async function loadRemoteData() {
   const couponsPromise = loadCollectionFromFirestore('coupons', { select: 'id,code,type,value,start,end,active' });
   const ordersPromise = (state.admin && state.admin.authenticated) ? loadCollectionFromFirestore('orders') : loadOrdersForCurrentUser();
   const socialPromise = loadSocialSettings();
-  const cartPromise = loadFromFirestore('settings', 'cart');
+  const cartPromise = Promise.resolve(loadCartState());
   const reviewImagesPromise = loadFromFirestore('settings', 'review_images');
   const sliderImagesPromise = loadFromFirestore('settings', 'slider_images');
   const shippingRatesPromise = loadFromFirestore('settings', 'shipping_rates');
