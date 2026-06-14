@@ -125,6 +125,8 @@ let firebaseStorage = null;
 let firebaseEnabled = false;
 let settingsField = 'value'; // Changed default to 'value' as it's more common in Supabase settings tables
 
+// Push Notifications removed - not needed for web version
+
 class SimpleSupabaseClient {
   constructor(url, key) {
     this.url = url;
@@ -2524,6 +2526,7 @@ function populateGovernorateOptions() {
 
 function buildSummary() {
   populateGovernorateOptions();
+  try { prefillCheckoutFields(); } catch (e) {}
   const totalProducts = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   // remove diagnostic logs from production
   try {
@@ -3352,7 +3355,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!window.location.hash) window.location.hash = '#home';
     restoreTheme();
     handleHashChange();
-
     loadRemoteData();
   } catch (err) {
     console.error('Error during DOMContentLoaded initialization:', err?.message || err);
@@ -3498,11 +3500,26 @@ function persistAuthUser(user) {
   } else {
     localStorage.removeItem('farfashaAuthUser');
   }
-  // Prefill checkout email if visible/available
+  // Prefill checkout fields if visible/available
   try {
-    prefillCheckoutEmail();
+    prefillCheckoutFields();
   } catch (e) {
     console.warn('persistAuthUser prefill failed', e?.message || e);
+  }
+}
+
+function prefillCheckoutFields() {
+  try {
+    const authUser = window.currentAuthUser || null;
+    if (!authUser) return;
+    const nameInput = document.querySelector('input[name="name"]');
+    const emailInput = document.querySelector('input[name="email"]');
+    const phoneInput = document.querySelector('input[name="phone"]');
+    if (nameInput && authUser.fullName) nameInput.value = authUser.fullName;
+    if (emailInput && authUser.email) emailInput.value = authUser.email;
+    if (phoneInput && authUser.phone) phoneInput.value = authUser.phone;
+  } catch (err) {
+    console.warn('prefillCheckoutFields error', err?.message || err);
   }
 }
 
@@ -3510,10 +3527,8 @@ function prefillCheckoutEmail() {
   try {
     const emailInput = document.querySelector('input[name="email"]');
     const authUser = window.currentAuthUser || null;
-    if (emailInput) {
-      if (authUser && authUser.email) {
-        emailInput.value = authUser.email;
-      }
+    if (emailInput && authUser && authUser.email) {
+      emailInput.value = authUser.email;
     }
   } catch (err) {
     console.warn('prefillCheckoutEmail error', err?.message || err);
@@ -3532,7 +3547,7 @@ function restoreAuthState() {
     if (user && user.email) {
       window.currentAuthUser = user;
       showAuthContent(true, user);
-      try { prefillCheckoutEmail(); } catch (e) {}
+      try { prefillCheckoutFields(); } catch (e) {}
       // After restoring auth, ensure we load latest orders for the current user from the server
       (async () => {
         try {
