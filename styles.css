@@ -954,6 +954,21 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 0.95;
 }
 
+/* Ensure hero heading spacing also applies when using h2 in markup */
+.hero-copy h2 {
+  margin: 0 0 18px;
+  font-size: clamp(3.5rem, 5vw, 5.8rem);
+  line-height: 1.12; /* default desktop-ish spacing */
+}
+
+/* Mobile: increase line-height so two wrapped lines have visible gap */
+@media (max-width: 520px) {
+  .hero-copy h1,
+  .hero-copy h2 {
+    line-height: 1.45;
+  }
+}
+
 .hero-copy p {
   max-width: 620px;
   line-height: 1.8;
