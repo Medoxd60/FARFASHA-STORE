@@ -125,6 +125,15 @@ let firebaseStorage = null;
 let firebaseEnabled = false;
 let settingsField = 'value'; // Changed default to 'value' as it's more common in Supabase settings tables
 
+function parseSettingsValue(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch (err) {
+    return value;
+  }
+}
+
 // Push Notifications removed - not needed for web version
 
 class SimpleSupabaseClient {
@@ -993,11 +1002,11 @@ async function loadFromFirestore(collectionName, docId) {
     if (!data) return null;
     if (data.data !== undefined) {
       settingsField = 'data';
-      return data.data;
+      return parseSettingsValue(data.data);
     }
     if (data.value !== undefined) {
       settingsField = 'value';
-      return data.value;
+      return parseSettingsValue(data.value);
     }
     return data;
   } catch (error) {
@@ -2463,7 +2472,10 @@ function toggleSliderImageSelection(index) {
 }
 
 async function saveSliderImages() {
-  await saveToFirestore('settings', 'slider_images', { images: state.sliderImages });
+  const saved = await saveToFirestore('settings', 'slider_images', { images: state.sliderImages });
+  if (!saved) {
+    console.warn('Failed to persist slider images to remote settings; changes may not appear on other devices.');
+  }
 }
 
 function renderDiscountedProducts() {
@@ -3319,10 +3331,19 @@ async function loadRemoteData() {
   });
 
   sliderImagesPromise.then(savedSliderImagesResult => {
-    if (savedSliderImagesResult) {
-      state.sliderImages = (savedSliderImagesResult.images || []).map(normalizeSliderImage).filter(Boolean);
-      renderSliderImages();
+    if (!savedSliderImagesResult) return;
+    let loadedImages = [];
+    if (Array.isArray(savedSliderImagesResult.images)) {
+      loadedImages = savedSliderImagesResult.images;
+    } else if (savedSliderImagesResult.value !== undefined) {
+      loadedImages = parseSettingsValue(savedSliderImagesResult.value)?.images || [];
+    } else if (savedSliderImagesResult.data !== undefined) {
+      loadedImages = parseSettingsValue(savedSliderImagesResult.data)?.images || [];
+    } else if (Array.isArray(savedSliderImagesResult)) {
+      loadedImages = savedSliderImagesResult;
     }
+    state.sliderImages = (loadedImages || []).map(normalizeSliderImage).filter(Boolean);
+    renderSliderImages();
   }).catch(err => {
     console.warn('Failed to load slider images:', err?.message || err);
   });
