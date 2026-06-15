@@ -466,8 +466,12 @@ function initRealtimeSubscriptions() {
         const listener = supabaseClient.from(table);
         if (listener && typeof listener.on === 'function') {
           listener
-            .on('*', payload => handler(payload.eventType || payload.event, payload.new || payload.record, payload.old))
+            .on('*', payload => {
+              console.debug(`Real-time update for ${table}:`, payload.eventType || payload.event);
+              handler(payload.eventType || payload.event, payload.new || payload.record, payload.old);
+            })
             .subscribe();
+          console.debug(`✓ Real-time listener attached to ${table} (method 1)`);
           return;
         }
       } catch (error) {
@@ -477,8 +481,10 @@ function initRealtimeSubscriptions() {
       try {
         const channel = supabaseClient.channel(`realtime-${table}`);
         channel.on('postgres_changes', { event: '*', schema: 'public', table }, payload => {
+          console.debug(`Real-time update for ${table}:`, payload.eventType || payload.event);
           handler(payload.eventType || payload.event, payload.new || payload.record, payload.old);
         }).subscribe();
+        console.debug(`✓ Real-time listener attached to ${table} (method 2)`);
       } catch (error) {
         console.warn(`Supabase realtime fallback failed for ${table}:`, error);
       }
@@ -489,6 +495,9 @@ function initRealtimeSubscriptions() {
     subscribeToTable('coupons', handleRealtimeCoupons);
     subscribeToTable('orders', handleRealtimeOrders);
     subscribeToTable('settings', handleRealtimeSettings);
+    console.log('✓ All real-time subscriptions initialized');
+  } else {
+    console.warn('Real-time subscriptions not available (Supabase client not ready)');
   }
 
   if (firebaseEnabled && firebaseDb) {
@@ -580,7 +589,13 @@ function handleRealtimeProducts(eventType, newRow, oldRow) {
     state.products = state.products.filter(product => product.id !== item.id);
   }
   renderProducts();
+  renderLatestProducts();
+  renderDiscountedProducts();
+  renderPickedProducts();
   if (window.location.hash.startsWith('#category/')) {
+    handleHashChange();
+  }
+  if (window.location.hash.startsWith('#product?id=')) {
     handleHashChange();
   }
 }
@@ -635,9 +650,9 @@ function handleRealtimeSettings(eventType, newRow, oldRow) {
 
   let settingsData;
   if (row.data !== undefined) {
-    settingsData = row.data;
+    settingsData = parseSettingsValue(row.data);
   } else if (row.value !== undefined) {
-    settingsData = row.value;
+    settingsData = parseSettingsValue(row.value);
   } else {
     return; // No valid settings data
   }
@@ -648,14 +663,21 @@ function handleRealtimeSettings(eventType, newRow, oldRow) {
   }
 
   if (rowKey === 'shipping_rates') {
-    state.shippingRates = settingsData?.rates || state.shippingRates;
+    state.shippingRates = settingsData?.rates || settingsData || state.shippingRates;
     populateGovernorateOptions();
   }
 
   if (rowKey === 'review_images') {
-    state.reviewImages = settingsData?.images || state.reviewImages;
+    state.reviewImages = settingsData?.images || settingsData || state.reviewImages;
     renderReviewImages();
     renderReviewImagesPreview();
+  }
+
+  if (rowKey === 'slider_images') {
+    const images = settingsData?.images || settingsData || [];
+    state.sliderImages = (Array.isArray(images) ? images : []).map(normalizeSliderImage).filter(Boolean);
+    renderSliderImages();
+    renderHomeSlider();
   }
 }
 
