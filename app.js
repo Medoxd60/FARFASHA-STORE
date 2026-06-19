@@ -1980,8 +1980,10 @@ function renderCategories() {
   categorySlider.innerHTML = state.categories.length ? `
     <div class="categories-gallery">
       ${state.categories.map(category => `
-        <div class="gallery-thumb category-thumb" onclick="window.location.hash='#category/${encodeURIComponent(category.name)}'">
-          <img src="${category.img}" alt="${category.name}" loading="lazy">
+        <div class="category-item" onclick="window.location.hash='#category/${encodeURIComponent(category.name)}'">
+          <div class="gallery-thumb category-thumb">
+            <img src="${category.img}" alt="${category.name}" loading="lazy">
+          </div>
           <h4>${category.name}</h4>
         </div>
       `).join('')}
