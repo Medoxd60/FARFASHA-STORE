@@ -11,7 +11,7 @@
 </head>
 <body>
   <!-- Splash video (mobile only) -->
-  <video id="splash" autoplay muted playsinline preload="auto" poster="assets/videos/splash-poster.jpg">
+  <video id="splash" autoplay muted playsinline preload="auto">
     <source src="assets/videos/splash.mp4" type="video/mp4">
     <source src="assets/videos/splash.webm" type="video/webm">
   </video>
@@ -49,7 +49,7 @@
   </script>
   <header>
     <div class="navbar">
-      <a class="brand" href="#home"><span>FASHA</span>FAR</a>
+      <a class="brand brand-animated" href="#home"><span>FASHA</span>FAR</a>
       <div class="navbar-links">
         <a href="#admin" data-link="admin" id="theme-toggle-btn">الوضع الليلي</a>
         <a href="#admin" data-link="admin">لوحة التحكم</a>
@@ -64,7 +64,7 @@
       </div>
       <div class="hero">
         <div class="hero-copy">
-          <h3>خلي كل تجربة شراء تصبح فرفشة</h3>
+          <h2>خلي كل تجربة شراء تصبح فرفشة</h2>
           <p>استكشف مجموعتنا المختارة من اللانجيري و المنتجات الخاصة لتجربة اكثر اثارة و أناقة.</p>
           <div class="panel">
             <button class="btn" onclick="window.location.hash='#products'">ابدأ التسوق</button>
@@ -610,7 +610,7 @@
     </a>
   </nav>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/supabase.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
