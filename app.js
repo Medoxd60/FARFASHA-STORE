@@ -2800,7 +2800,7 @@ async function submitOrder(event) {
   renderUserOrders();
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
-  window.location.hash = '#home';
+ 
 }
 
 function renderOrders(search = '') {
@@ -2878,7 +2878,7 @@ function renderOrders(search = '') {
       </div>
     </article>
   `;
-  }).join('') : '<div class="alert">مفيش طلبات لحد دلوقتي. الطلبات اللي يبعتهالنا هتبان هنا.</div>';
+  }).join('') : '<div class="alert">مفيش طلبات لحد دلوقتي. الطلبات اللي يبعتهالنا العميل هتبان هنا.</div>';
 }
 
 function findValidCoupon(code) {
