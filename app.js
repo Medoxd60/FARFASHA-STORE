@@ -1481,7 +1481,7 @@ async function loadProductsPreview(limit = 200) {
   if (!supabaseClient) await initSupabaseClient();
   if (!supabaseClient) return [];
   try {
-    const cols = 'id,name,price,img,category,available,discount,original_price';
+    const cols = 'id,name,price,img,category,available,discount,original_price,options';
     const query = supabaseClient.from('products').select(cols).order('id', { ascending: false }).limit(limit);
     const result = await query;
     const data = result?.data ?? result;
@@ -1492,7 +1492,7 @@ async function loadProductsPreview(limit = 200) {
   } catch (err) {
     console.warn('loadProductsPreview failed, falling back to REST/collection load:', err?.message || err);
     try {
-      const restData = await directSupabaseRequest('products?select=id,name,price,img,category,available,discount,original_price', 'GET');
+      const restData = await directSupabaseRequest('products?select=id,name,price,img,category,available,discount,original_price,options', 'GET');
       if (Array.isArray(restData)) {
         console.log('loadProductsPreview REST fallback loaded', restData.length, 'products');
         return normalizeCollectionFromDb('products', restData);
