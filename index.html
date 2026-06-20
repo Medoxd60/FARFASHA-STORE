@@ -347,9 +347,24 @@
               <label>اسم المنتج<input id="new-name" type="text" placeholder="اسم المنتج" required></label>
               <label>السعر<input id="new-price" type="number" placeholder="السعر بالجنية" required></label>
               <label>السعر الأصلي (اختياري للخصم)<input id="new-original-price" type="number" placeholder="السعر الأصلي"></label>
-              <label>الفئة<select id="new-category" required>
-                <option value="">اختر الفئة</option>
-              </select></label>
+              <label>الفئة
+                <div class="product-category-wrapper">
+                  <select id="new-category" required>
+                    <option value="">اختر الفئة</option>
+                  </select>
+                  <button type="button" class="options-toggle-btn" id="category-options-toggle" aria-expanded="false">خيارات ▾</button>
+                </div>
+              </label>
+
+              <div class="category-options-panel hidden" id="category-options-panel" aria-hidden="true">
+                <div class="category-options-container" id="category-options-container">
+                  <div class="category-option-row">
+                    <input class="category-option-input" type="text" placeholder="خيار جديد">
+                    <button type="button" class="remove-option-btn" title="إزالة">✕</button>
+                  </div>
+                </div>
+                <button type="button" class="add-option-btn" id="add-category-option">+ إضافة</button>
+              </div>
               <label class="switch-row">حالة التوفر
                 <div class="switch">
                   <input id="new-available" type="checkbox" checked>
