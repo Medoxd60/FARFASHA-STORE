@@ -2693,7 +2693,7 @@ function buildSummary() {
   try {
   } catch (e) { }
   if (!state.cart.length) {
-    orderSummary.innerHTML = '<p class="card-detail">مفيش منتجات في السلة. روح صفحة المنتجات و اضيف حاجات حلوة.</p>';
+    orderSummary.innerHTML = '<p class="card-detail">مفيش منتجات في السلة. روح صفحة المنتجات و ضيف حاجات حلوة.</p>';
     return;
   }
   const selectedGov = document.getElementById('checkout-governorate')?.value || Object.keys(state.shippingRates)[0];
