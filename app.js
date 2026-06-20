@@ -3112,6 +3112,9 @@ function editProduct(id) {
       </div>
     `).join('');
   document.querySelector('#add-product-form button[type="submit"]').textContent = 'تحديث المنتج';
+  const cancelBtn = document.getElementById('cancel-product-edit-btn');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+  scrollProductFormIntoView();
   
   // استعادة الخيارات المحفوظة
   if (product.options && product.options.length > 0) {
@@ -3134,6 +3137,8 @@ function resetProductForm() {
   document.getElementById('gallery-images-preview').innerHTML = '';
   document.getElementById('new-available').checked = true;
   document.querySelector('#add-product-form button[type="submit"]').textContent = 'حفظ المنتج';
+  const cancelBtn = document.getElementById('cancel-product-edit-btn');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
   mainImageData = null;
   galleryImagesData = [];
   
@@ -3153,6 +3158,16 @@ function resetProductForm() {
   categoryOptionsPanel.classList.add('hidden');
   categoryOptionsPanel.setAttribute('aria-hidden', 'true');
   categoryOptionsToggle.setAttribute('aria-expanded', 'false');
+}
+
+function cancelProductEdit() {
+  resetProductForm();
+}
+
+function scrollProductFormIntoView() {
+  const form = document.getElementById('add-product-form');
+  if (!form) return;
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function deleteProduct(id) {
