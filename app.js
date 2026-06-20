@@ -3167,7 +3167,10 @@ function cancelProductEdit() {
 function scrollProductFormIntoView() {
   const form = document.getElementById('add-product-form');
   if (!form) return;
-  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const rect = form.getBoundingClientRect();
+  const offset = 140; // اجعل الصفحة تصعد أكثر من بداية الفورم
+  const top = window.pageYOffset + rect.top - offset;
+  window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
 }
 
 function deleteProduct(id) {
