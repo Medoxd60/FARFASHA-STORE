@@ -380,7 +380,10 @@
                 <label>المعرض (صور إضافية)<input id="new-gallery-images" type="file" accept="image/*" multiple onchange="previewGalleryImages(event)"></label>
                 <div id="gallery-images-preview" class="image-preview-grid"></div>
               </div>
-              <button class="btn" type="submit">حفظ المنتج</button>
+              <div class="form-actions-row">
+                <button class="btn" type="submit">حفظ المنتج</button>
+                <button class="secondary-btn hidden" type="button" id="cancel-product-edit-btn" onclick="cancelProductEdit()">إلغاء</button>
+              </div>
             </form>
           </article>
           <div class="admin-search-bar">
