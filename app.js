@@ -58,6 +58,50 @@ const reviewImagesGrid = document.getElementById('review-images-grid');
 const reviewImagesPreview = document.getElementById('review-images-preview');
 const sliderImagesPreview = document.getElementById('slider-images-preview');
 const userOrdersList = document.getElementById('user-orders-list');
+// Category options elements (dynamic fields under category select)
+const categoryOptionsToggle = document.getElementById('category-options-toggle');
+const categoryOptionsPanel = document.getElementById('category-options-panel');
+const categoryOptionsContainer = document.getElementById('category-options-container');
+const addCategoryOptionBtn = document.getElementById('add-category-option');
+
+function createCategoryOptionRow(value = '') {
+  const row = document.createElement('div');
+  row.className = 'category-option-row';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'category-option-input';
+  input.placeholder = 'خيار جديد';
+  input.value = value || '';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'remove-option-btn';
+  removeBtn.title = 'إزالة';
+  removeBtn.textContent = '✕';
+  removeBtn.addEventListener('click', () => {
+    row.remove();
+  });
+  row.appendChild(input);
+  row.appendChild(removeBtn);
+  return row;
+}
+
+if (addCategoryOptionBtn && categoryOptionsContainer) {
+  addCategoryOptionBtn.addEventListener('click', () => {
+    const newRow = createCategoryOptionRow();
+    categoryOptionsContainer.appendChild(newRow);
+    const input = newRow.querySelector('input');
+    if (input) input.focus();
+  });
+}
+
+if (categoryOptionsToggle && categoryOptionsPanel) {
+  categoryOptionsToggle.addEventListener('click', () => {
+    const expanded = categoryOptionsToggle.getAttribute('aria-expanded') === 'true';
+    categoryOptionsToggle.setAttribute('aria-expanded', String(!expanded));
+    categoryOptionsPanel.classList.toggle('hidden');
+    categoryOptionsPanel.setAttribute('aria-hidden', String(expanded));
+  });
+}
 
 let state = {
   products: [],
@@ -2041,6 +2085,8 @@ function renderProductDetail(productId) {
       ` : '';
 
   const galleryImages = product.gallery && product.gallery.length ? product.gallery : [product.img];
+  // prepare selected options state for this detail view
+  window.currentDetailSelectedOptions = [];
 
   productDetailContent.innerHTML = `
     <div class="product-detail-main">
@@ -2055,6 +2101,16 @@ function renderProductDetail(productId) {
             </div>
           `).join('')}
         </div>
+        ${Array.isArray(product.options) && product.options.length ? `
+          <div class="product-options" id="product-options-${product.id}">
+            ${product.options.map(opt => `
+              <div class="product-option" data-option="${escapeHtml(opt)}" onclick="toggleDetailOption('${escapeJs(opt)}', ${product.id})">
+                <span class="option-dot"></span>
+                <span class="option-label">${escapeHtml(opt)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
       <div class="product-detail-info">
         <h3>${product.name}</h3>
@@ -2070,6 +2126,31 @@ function renderProductDetail(productId) {
       </div>
     </div>
   `;
+}
+
+function escapeHtml(str) {
+  if (!str && str !== 0) return '';
+  return String(str).replace(/[&<>\"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[s]);
+}
+
+function escapeJs(str) {
+  if (!str && str !== 0) return '';
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g, "\\'");
+}
+
+function toggleDetailOption(option, productId) {
+  const sel = window.currentDetailSelectedOptions || [];
+  const idx = sel.indexOf(option);
+  if (idx === -1) sel.push(option);
+  else sel.splice(idx,1);
+  window.currentDetailSelectedOptions = sel;
+  // update UI active class
+  const container = document.getElementById(`product-options-${productId}`);
+  if (!container) return;
+  Array.from(container.querySelectorAll('.product-option')).forEach(el => {
+    const opt = el.getAttribute('data-option');
+    if (sel.indexOf(opt) !== -1) el.classList.add('active'); else el.classList.remove('active');
+  });
 }
 
 function changeMainImage(src) {
@@ -2090,10 +2171,11 @@ function addToCartFromDetail(productId) {
     alert('المنتج غير متوفر الآن');
     return;
   }
+  const selectedOptions = window.currentDetailSelectedOptions ? [...window.currentDetailSelectedOptions] : [];
   for (let i = 0; i < quantity; i++) {
-    addToCart(productId);
+    addToCart(productId, selectedOptions);
   }
-  alert(`✅ تم إضافة ${quantity} من ${product.name} للسلة`);
+  alert(`✅ تم إضافة ${quantity} من ${product.name} للسلة` + (selectedOptions.length ? `\nالخيار/الخيارات: ${selectedOptions.join(', ')}` : ''));
 }
 
 function buyNow(productId) {
@@ -2526,7 +2608,10 @@ function renderCart() {
   cartTableBody.innerHTML = state.cart.length ? state.cart.map(item => `
     <tr>
       <td><img src="${item.img}" alt="${item.name}"></td>
-      <td>${item.name}</td>
+      <td>
+        ${item.name}
+        ${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>`<span>${escapeHtml(o)}</span>`).join(' • ')}</div>` : ''}
+      </td>
       <td>${formatPrice(item.price)}</td>
       <td>
         <div class="quantity-controls cart-quantity-controls">
@@ -2557,16 +2642,17 @@ function updateCartQuantity(productId, delta) {
   renderCart();
 }
 
-function addToCart(productId) {
+function addToCart(productId, options = []) {
   const product = state.products.find(p => p.id === productId);
   if (!product) return;
   if (product.available === false) {
     alert('المنتج غير متوفر الآن');
     return;
   }
-  const existing = state.cart.find(item => item.id === productId);
+  // try to find identical cart line (same product id and same options)
+  const existing = state.cart.find(item => item.id === productId && JSON.stringify(item.options || []) === JSON.stringify(options || []));
   if (existing) existing.quantity += 1;
-  else state.cart.push({ ...product, quantity: 1 });
+  else state.cart.push({ id: product.id, name: product.name, price: product.price, img: product.img, options: options || [], quantity: 1 });
   saveCartState();
   renderCart();
   alert('✅ المنتج اتضاف للسلة');
@@ -2684,7 +2770,7 @@ async function submitOrder(event) {
     coupon: couponCode,
     couponDiscount,
     shippingCost,
-    items: state.cart.map(item => ({ id: item.id, name: item.name, qty: item.quantity, price: item.price, img: item.img })),
+    items: state.cart.map(item => ({ id: item.id, name: item.name, qty: item.quantity, price: item.price, img: item.img, options: item.options || [] })),
     total: baseTotal + shippingCost - couponDiscount,
     date: now.toLocaleString('ar-EG'),
     createdAt: now.toISOString(),
@@ -2771,7 +2857,7 @@ function renderOrders(search = '') {
               <div class="detail-image">
                 <img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}">
               </div>
-              <span class="detail-name">${item.name}</span>
+              <span class="detail-name">${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
               <span class="detail-cell">${item.price.toLocaleString()}</span>
               <span class="detail-cell">${item.qty}</span>
               <span class="detail-cell">${(item.price * item.qty).toLocaleString()}</span>
@@ -3015,6 +3101,19 @@ function editProduct(id) {
       </div>
     `).join('');
   document.querySelector('#add-product-form button[type="submit"]').textContent = 'تحديث المنتج';
+  
+  // استعادة الخيارات المحفوظة
+  if (product.options && product.options.length > 0) {
+    categoryOptionsContainer.innerHTML = '';
+    product.options.forEach(optionValue => {
+      const row = createCategoryOptionRow(optionValue);
+      categoryOptionsContainer.appendChild(row);
+    });
+    // تأكد من أن الموديل مُغلق بحيث لا يحجب واجهة الملء
+    categoryOptionsPanel.classList.add('hidden');
+    categoryOptionsPanel.setAttribute('aria-hidden', 'true');
+    categoryOptionsToggle.setAttribute('aria-expanded', 'false');
+  }
 }
 
 function resetProductForm() {
@@ -3026,6 +3125,23 @@ function resetProductForm() {
   document.querySelector('#add-product-form button[type="submit"]').textContent = 'حفظ المنتج';
   mainImageData = null;
   galleryImagesData = [];
+  
+  // إعادة تعيين حقول الخيارات
+  categoryOptionsContainer.innerHTML = `
+    <div class="category-option-row">
+      <input class="category-option-input" type="text" placeholder="خيار جديد">
+      <button type="button" class="remove-option-btn" title="إزالة">✕</button>
+    </div>
+  `;
+  const removeBtn = categoryOptionsContainer.querySelector('.remove-option-btn');
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function() {
+      this.parentElement.remove();
+    });
+  }
+  categoryOptionsPanel.classList.add('hidden');
+  categoryOptionsPanel.setAttribute('aria-hidden', 'true');
+  categoryOptionsToggle.setAttribute('aria-expanded', 'false');
 }
 
 function deleteProduct(id) {
@@ -3071,6 +3187,9 @@ function addNewProduct(event) {
   const price = Number(document.getElementById('new-price').value);
   const originalPrice = Number(document.getElementById('new-original-price').value) || null;
   const category = document.getElementById('new-category').value;
+  // gather dynamic category options (if any)
+  const optionInputs = document.querySelectorAll('.category-option-input');
+  const categoryOptions = optionInputs ? Array.from(optionInputs).map(i => i.value.trim()).filter(Boolean) : [];
   const desc = document.getElementById('new-desc').value.trim();
   const available = document.getElementById('new-available').checked;
   if (!name || !price || !category || !desc) return;
@@ -3085,6 +3204,10 @@ function addNewProduct(event) {
     gallery: [...galleryImagesData],
     available
   };
+
+  if (categoryOptions.length) {
+    productData.options = categoryOptions;
+  }
 
   if (originalPrice) {
     productData.originalPrice = originalPrice;
@@ -3826,7 +3949,7 @@ function renderUserOrders() {
             ${order.items.map(item => `
               <div class="order-detail-row">
                 <div class="detail-image"><img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}" class="order-item-image"></div>
-                <span class="detail-name">${item.name}</span>
+                <span class="detail-name">${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
                 <span class="detail-cell">${formatPrice(item.price || 0)}</span>
                 <span class="detail-cell">${item.qty}</span>
                 <span class="detail-cell">${formatPrice((item.price || 0) * item.qty)}</span>
