@@ -743,6 +743,7 @@ function mapProductFromDb(product) {
     desc: product.description || '',
     img: product.img || '',
     gallery: Array.isArray(product.gallery) ? product.gallery : [],
+    options: Array.isArray(product.options) ? product.options : (product.options || []),
     category: product.category || 'أخرى',
     available: product.available !== false
   };
@@ -758,6 +759,7 @@ function mapProductToDb(product) {
     description: product.desc || '',
     img: product.img || null,
     gallery: Array.isArray(product.gallery) ? product.gallery : [],
+    options: Array.isArray(product.options) ? product.options : (product.options || []),
     category: product.category || null,
     available: product.available !== false
   };
@@ -1701,6 +1703,12 @@ async function saveCollectionToFirestore(collectionName, items) {
 
     if (supabaseClient && typeof supabaseClient.from === 'function') {
       try {
+        if (collectionName === 'products') {
+          try {
+            console.log('DEBUG: saving products payload to Supabase:', JSON.stringify(payload, null, 2));
+          } catch (e) { /* ignore stringify errors */ }
+        }
+
         const upsertOp = supabaseClient
           .from(collectionName)
           .upsert(payload, { onConflict: 'id' });
@@ -1714,6 +1722,9 @@ async function saveCollectionToFirestore(collectionName, items) {
         }
 
         saveError = result?.error || null;
+        if (collectionName === 'products') {
+          console.log('DEBUG: Supabase upsert result for products:', result);
+        }
         if (!saveError) {
           console.log(`Successfully saved ${collectionName} to Supabase`);
           if (collectionName === 'categories') {
