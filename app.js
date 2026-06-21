@@ -1865,6 +1865,7 @@ function handleHashChange() {
   const hash = window.location.hash.replace('#', '') || 'home';
   if (hash === 'admin' && !state.admin.authenticated) {
     setSection('admin');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
   if (hash.startsWith('category/')) {
@@ -1876,6 +1877,7 @@ function handleHashChange() {
     renderCategoryPage(categoryName);
     setSection('category');
     updateNavActive('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
   if (hash.startsWith('product?id=')) {
@@ -1887,6 +1889,7 @@ function handleHashChange() {
     renderProductDetail(productId);
     setSection('product-detail');
     updateNavActive('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
   if (!sections[hash]) {
@@ -1895,6 +1898,7 @@ function handleHashChange() {
   }
   setSection(hash);
   updateNavActive(hash);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   if (hash === 'checkout') buildSummary();
 }
 
@@ -1962,7 +1966,10 @@ function getProductCardFooter(product, stopPropagation = false) {
   if (!isAvailable) {
     return `<span class="unavailable-tag">غير متوفر الآن</span>`;
   }
-  const priceDisplay = product.discount ? `${formatPrice(product.price)} <del style="color: var(--text-muted); font-size: 0.9em;">${formatPrice(product.originalPrice)}</del>` : formatPrice(product.price);
+  let priceDisplay = `<span class="price-main">${formatPrice(product.price)}</span>`;
+  if (product.discount) {
+    priceDisplay += `<span class="price-old"><del>${formatPrice(product.originalPrice)}</del></span>`;
+  }
   const clickCode = stopPropagation ? 'event.stopPropagation(); ' : '';
   return `<span class="price-tag">${priceDisplay}</span><button class="btn" onclick="${clickCode}addToCart(${product.id})">أضف للسلة</button>`;
 }
@@ -2745,6 +2752,18 @@ function buildSummary() {
     console.warn('buildSummary prefill email failed', e?.message || e);
   }
 
+function enforcePhonePrefix(input) {
+  // ضمان أن الرقم يبدأ بـ "2"
+  let value = input.value || '';
+  // إزالة أي أحرف غير أرقام إذا لزم الأمر
+  value = value.replace(/\D/g, '');
+  // إذا كان الحقل فارغاً أو يبدأ بأقل من "2"، ابدأ برقم 2
+  if (!value || !value.startsWith('2')) {
+    value = '2' + value.replace(/^2/, ''); // إزالة أي "2" موجودة وإضافة واحدة في البداية
+  }
+  input.value = value;
+}
+
 async function submitOrder(event) {
   event.preventDefault();
   // debug log removed for cleaner console
@@ -2800,7 +2819,6 @@ async function submitOrder(event) {
   renderUserOrders();
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
- 
 }
 
 function renderOrders(search = '') {
@@ -2878,7 +2896,7 @@ function renderOrders(search = '') {
       </div>
     </article>
   `;
-  }).join('') : '<div class="alert">مفيش طلبات لحد دلوقتي. الطلبات اللي يبعتهالنا العميل هتبان هنا.</div>';
+  }).join('') : '<div class="alert">مفيش طلبات لحد دلوقتي. الطلبات اللي يبعتهالنا هتبان هنا.</div>';
 }
 
 function findValidCoupon(code) {
@@ -3629,6 +3647,7 @@ async function saveShippingRates() {
 window.addToCart = addToCart;
 window.removeFromCart = removeFromCart;
 window.submitOrder = submitOrder;
+window.enforcePhonePrefix = enforcePhonePrefix;
 window.loginAdmin = loginAdmin;
 window.addNewProduct = addNewProduct;
 window.deleteProduct = deleteProduct;
