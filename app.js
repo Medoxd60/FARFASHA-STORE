@@ -1934,30 +1934,23 @@ function generateOrderNumber() {
 }
 
 function normalizeOrderNumbers() {
-  const orderNumbers = state.orders
-    .map(order => Number(order.orderNumber))
-    .filter(num => !Number.isNaN(num));
-  let nextNumber = orderNumbers.length ? Math.max(...orderNumbers) + 1 : 1000;
-
-  if (!orderNumbers.length) {
-    state.orders = [...state.orders].reverse().map(order => {
-      const currentValue = Number(order.orderNumber);
-      if (!Number.isNaN(currentValue)) return { ...order, orderNumber: currentValue };
-      return { ...order, orderNumber: nextNumber++ };
-    }).reverse();
-    try { localStorage.setItem('nextOrderNumber', String(nextNumber)); } catch (e) {}
-    return;
-  }
-
-  state.orders = state.orders.map(order => {
-    const existingValue = Number(order.orderNumber);
-    if (!Number.isNaN(existingValue)) {
-      return { ...order, orderNumber: existingValue };
-    }
-    const updatedOrder = { ...order, orderNumber: nextNumber };
-    nextNumber++;
-    return updatedOrder;
+  // Reassign sequential orderNumber values to include all existing orders
+  // Sort orders by createdAt (oldest first) to produce a stable chronological sequence.
+  const sorted = [...state.orders].slice().sort((a, b) => {
+    const aTime = new Date(a.createdAt || a.created_at || a.date || 0).getTime() || 0;
+    const bTime = new Date(b.createdAt || b.created_at || b.date || 0).getTime() || 0;
+    if (aTime !== bTime) return aTime - bTime;
+    // fallback to id numeric comparison
+    return (a.id || 0) - (b.id || 0);
   });
+
+  let nextNumber = 1000;
+  const reassigned = sorted.map(order => ({ ...order, orderNumber: nextNumber++ }));
+
+  // Preserve the original array order in state but with updated orderNumber values
+  const idToNumber = new Map(reassigned.map(o => [o.id, o.orderNumber]));
+  state.orders = state.orders.map(o => ({ ...o, orderNumber: idToNumber.get(o.id) || o.orderNumber || (nextNumber++) }));
+
   try { localStorage.setItem('nextOrderNumber', String(nextNumber)); } catch (e) {}
 }
 
