@@ -2314,6 +2314,7 @@ h1, h2, h3, h4, h5, h6 {
   padding: 10px 14px;
   border-radius: 999px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .product-meta .btn {
@@ -2330,6 +2331,18 @@ h1, h2, h3, h4, h5, h6 {
   text-align: center;
   font-size: 0.97rem;
   line-height: 1.2;
+}
+
+.price-old {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.88rem;
+  opacity: 0.95;
+  margin-inline-start: 8px;
+}
+
+.price-old del {
+  color: var(--text-muted);
 }
 
 .price-tag .price-main,
