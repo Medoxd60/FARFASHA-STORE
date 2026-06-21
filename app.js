@@ -35,6 +35,8 @@ const latestProductsGrid = document.getElementById('latest-products-grid');
 const discountedProductsGrid = document.getElementById('discounted-products-grid');
 const pickedProductsGrid = document.getElementById('picked-products-grid');
 const categorySlider = document.getElementById('category-slider');
+let latestProductsScrollObserver = null;
+const sectionAnimObservers = new Map();
 const cartTableBody = document.getElementById('cart-items');
 const cartCount = document.getElementById('cart-count');
 const bottomCartCount = document.getElementById('bottom-cart-count');
@@ -2007,6 +2009,240 @@ function renderLatestProducts() {
       </div>
     </article>
   `}).join('');
+  setupLatestProductsScrollAnimation();
+}
+
+function setupLatestProductsScrollAnimation() {
+  if (!latestProductsGrid || window.innerWidth > 520) return;
+  const cards = Array.from(latestProductsGrid.querySelectorAll('.product-card'));
+  if (!cards.length) return;
+  if (latestProductsScrollObserver) {
+    latestProductsScrollObserver.disconnect();
+    latestProductsScrollObserver = null;
+  }
+  latestProductsGrid.classList.add('latest-products-anim');
+  cards.forEach((card, index) => {
+    card.classList.remove('visible');
+    card.classList.toggle('from-left', index % 2 === 0);
+    card.classList.toggle('from-right', index % 2 === 1);
+  });
+
+  const animated = new Set();
+
+  latestProductsScrollObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const idx = cards.indexOf(entry.target);
+      if (idx === -1) return;
+      const pairStart = idx - (idx % 2);
+      const pairIndices = [pairStart, pairStart + 1].filter(i => i >= 0 && i < cards.length);
+
+      pairIndices.forEach((pi, relIndex) => {
+        if (animated.has(pi)) return;
+        // small stagger between the two cards
+        setTimeout(() => {
+          cards[pi].classList.add('visible');
+        }, relIndex * 90);
+        animated.add(pi);
+        try { latestProductsScrollObserver.unobserve(cards[pi]); } catch (e) {}
+      });
+
+      // If all cards animated, disconnect observer
+      if (animated.size >= cards.length) {
+        try { latestProductsScrollObserver.disconnect(); } catch (e) {}
+        latestProductsScrollObserver = null;
+      }
+    });
+  }, { threshold: 0.35 });
+
+  // observe each card so pairs animate when either card in the pair comes into view
+  cards.forEach(card => latestProductsScrollObserver.observe(card));
+}
+
+function setupSectionScrollAnimation(gridElement, type) {
+  if (!gridElement || window.innerWidth > 520) return;
+  const cards = Array.from(gridElement.querySelectorAll('.product-card'));
+  if (!cards.length) return;
+
+  // disconnect previous observer for this grid
+  const existing = sectionAnimObservers.get(gridElement.id);
+  if (existing) {
+    try { existing.disconnect(); } catch (e) {}
+    sectionAnimObservers.delete(gridElement.id);
+  }
+
+  gridElement.classList.add(`${type}-anim`);
+  cards.forEach((card, index) => card.classList.remove('visible'));
+
+  const animated = new Set();
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const idx = cards.indexOf(entry.target);
+      if (idx === -1) return;
+
+      if (type === 'discounted' || type === 'latest') {
+        const pairStart = idx - (idx % 2);
+        const pairIndices = [pairStart, pairStart + 1].filter(i => i >= 0 && i < cards.length);
+        pairIndices.forEach((pi, relIndex) => {
+          if (animated.has(pi)) return;
+          setTimeout(() => cards[pi].classList.add('visible'), relIndex * 90);
+          animated.add(pi);
+          try { obs.unobserve(cards[pi]); } catch (e) {}
+        });
+      } else if (type === 'picked') {
+        const pairStart = idx - (idx % 2);
+        const pairIndices = [pairStart, pairStart + 1].filter(i => i >= 0 && i < cards.length);
+        pairIndices.forEach((pi, relIndex) => {
+          if (animated.has(pi)) return;
+          setTimeout(() => cards[pi].classList.add('visible'), relIndex * 70);
+          animated.add(pi);
+          try { obs.unobserve(cards[pi]); } catch (e) {}
+        });
+      } else if (type === 'products') {
+        const groupStart = Math.floor(idx / 3) * 3;
+        const group = [groupStart, groupStart + 1, groupStart + 2].filter(i => i >= 0 && i < cards.length);
+        group.forEach((pi, relIndex) => {
+          if (animated.has(pi)) return;
+          setTimeout(() => cards[pi].classList.add('visible'), relIndex * 60);
+          animated.add(pi);
+          try { obs.unobserve(cards[pi]); } catch (e) {}
+        });
+      }
+
+      if (animated.size >= cards.length) {
+        try { obs.disconnect(); } catch (e) {}
+        sectionAnimObservers.delete(gridElement.id);
+      }
+    });
+  }, { threshold: 0.35 });
+
+  cards.forEach(card => observer.observe(card));
+  sectionAnimObservers.set(gridElement.id, observer);
+}
+
+function setupAdvantagesAnimation() {
+  if (window.innerWidth > 520) return;
+  const grid = document.querySelector('.advantages-grid');
+  if (!grid) return;
+  const cards = Array.from(grid.querySelectorAll('.advantage-card'));
+  if (!cards.length) return;
+
+  const existing = sectionAnimObservers.get('advantages');
+  if (existing) {
+    try { existing.disconnect(); } catch (e) {}
+    sectionAnimObservers.delete('advantages');
+  }
+
+  grid.classList.add('advantages-anim');
+  cards.forEach(card => card.classList.remove('visible'));
+
+  const animated = new Set();
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const idx = cards.indexOf(entry.target);
+      if (idx === -1 || animated.has(idx)) return;
+
+      setTimeout(() => {
+        entry.target.classList.add('visible');
+        animated.add(idx);
+        try { obs.unobserve(entry.target); } catch (e) {}
+      }, idx * 80);
+
+      if (animated.size >= cards.length) {
+        try { obs.disconnect(); } catch (e) {}
+        sectionAnimObservers.delete('advantages');
+      }
+    });
+  }, { threshold: 0.4 });
+
+  cards.forEach(card => observer.observe(card));
+  sectionAnimObservers.set('advantages', observer);
+}
+
+function setupSocialAnimation() {
+  if (window.innerWidth > 520) return;
+  const grid = document.querySelector('.social-grid');
+  if (!grid) return;
+  const cards = Array.from(grid.querySelectorAll('.social-card'));
+  if (!cards.length) return;
+
+  const existing = sectionAnimObservers.get('social');
+  if (existing) {
+    try { existing.disconnect(); } catch (e) {}
+    sectionAnimObservers.delete('social');
+  }
+
+  grid.classList.add('social-anim');
+  cards.forEach(card => card.classList.remove('visible'));
+
+  const animated = new Set();
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const idx = cards.indexOf(entry.target);
+      if (idx === -1 || animated.has(idx)) return;
+
+      setTimeout(() => {
+        entry.target.classList.add('visible');
+        animated.add(idx);
+        try { obs.unobserve(entry.target); } catch (e) {}
+      }, idx * 100);
+
+      if (animated.size >= cards.length) {
+        try { obs.disconnect(); } catch (e) {}
+        sectionAnimObservers.delete('social');
+      }
+    });
+  }, { threshold: 0.3 });
+
+  cards.forEach(card => observer.observe(card));
+  sectionAnimObservers.set('social', observer);
+}
+
+function setupReviewsAnimation() {
+  if (window.innerWidth > 520) return;
+  const grid = document.getElementById('review-images-grid');
+  if (!grid) return;
+  const cards = Array.from(grid.querySelectorAll('.review-card'));
+  if (!cards.length) return;
+
+  const existing = sectionAnimObservers.get('reviews');
+  if (existing) {
+    try { existing.disconnect(); } catch (e) {}
+    sectionAnimObservers.delete('reviews');
+  }
+
+  grid.classList.add('reviews-anim');
+  cards.forEach(card => card.classList.remove('visible'));
+
+  const animated = new Set();
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const idx = cards.indexOf(entry.target);
+      if (idx === -1 || animated.has(idx)) return;
+
+      setTimeout(() => {
+        entry.target.classList.add('visible');
+        animated.add(idx);
+        try { obs.unobserve(entry.target); } catch (e) {}
+      }, idx * 90);
+
+      if (animated.size >= cards.length) {
+        try { obs.disconnect(); } catch (e) {}
+        sectionAnimObservers.delete('reviews');
+      }
+    });
+  }, { threshold: 0.3 });
+
+  cards.forEach(card => observer.observe(card));
+  sectionAnimObservers.set('reviews', observer);
 }
 
 function renderPickedProducts() {
@@ -2028,6 +2264,8 @@ function renderPickedProducts() {
       </div>
     </article>
   `}).join('');
+  // initialize mobile animation for picked products
+  try { setupSectionScrollAnimation(pickedProductsGrid, 'picked'); } catch (e) {}
 }
 
 function renderCategories() {
@@ -2425,6 +2663,8 @@ function renderReviewImages() {
       <img src="${image}" alt="صورة رأي عميل" loading="lazy">
     </article>
   `).join('') : '<p class="card-detail" style="grid-column: 1 / -1; text-align:center;">لم يتم إضافة صور بعد.</p>';
+  // initialize mobile animation for review images
+  try { setupReviewsAnimation(); } catch (e) {}
 }
 
 function renderReviewImagesPreview() {
@@ -2612,6 +2852,8 @@ function renderDiscountedProducts() {
       </div>
     </article>
   `}).join('') : '<p class="card-detail" style="grid-column: 1 / -1; text-align: center;">مفيش عروض دلوقتي، شوف تاني لاحقًا.</p>';
+  // initialize mobile animation for discounted products
+  try { setupSectionScrollAnimation(discountedProductsGrid, 'discounted'); } catch (e) {}
 }
 
 function renderCart() {
@@ -3595,6 +3837,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!window.location.hash) window.location.hash = '#home';
     restoreTheme();
     handleHashChange();
+    // Initialize mobile animations for static sections
+    try { setupAdvantagesAnimation(); } catch (e) {}
+    try { setupSocialAnimation(); } catch (e) {}
+    try { setupReviewsAnimation(); } catch (e) {}
     loadRemoteData();
   } catch (err) {
     console.error('Error during DOMContentLoaded initialization:', err?.message || err);
