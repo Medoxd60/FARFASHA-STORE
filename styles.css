@@ -3412,6 +3412,90 @@ body.theme-dark .category-item h4 {
     box-shadow: none;
   }
 
+  /* Latest products: slide in from sides (increased distance for clearer motion) */
+  .cards-grid#latest-products-grid.latest-products-anim .product-card {
+    opacity: 0;
+    transform: translateX(36px);
+    transition: opacity .45s ease, transform .45s ease;
+  }
+
+  .cards-grid#latest-products-grid.latest-products-anim .product-card.from-left {
+    transform: translateX(-36px);
+  }
+
+  .cards-grid#latest-products-grid.latest-products-anim .product-card.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Discounted products: slide up in pairs */
+  .cards-grid#discounted-products-grid.discounted-anim .product-card {
+    opacity: 0;
+    transform: translateY(36px);
+    transition: opacity .45s ease, transform .45s ease;
+  }
+  .cards-grid#discounted-products-grid.discounted-anim .product-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Picked products: gentle scale-in (pairs) */
+  .cards-grid#picked-products-grid.picked-anim .product-card {
+    opacity: 0;
+    transform: scale(.92);
+    transition: opacity .45s ease, transform .45s cubic-bezier(.2,.9,.2,1);
+  }
+  .cards-grid#picked-products-grid.picked-anim .product-card.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* Products grid: small rotateX + lift for a distinct look */
+  .cards-grid#products-grid.products-anim .product-card {
+    opacity: 0;
+    transform: translateY(18px) rotateX(6deg);
+    transform-origin: center top;
+    transition: opacity .45s ease, transform .45s cubic-bezier(.2,.9,.2,1);
+  }
+  .cards-grid#products-grid.products-anim .product-card.visible {
+    opacity: 1;
+    transform: translateY(0) rotateX(0);
+  }
+
+  /* Advantages cards: rotating staggered entrance */
+  .advantages-grid.advantages-anim .advantage-card {
+    opacity: 0;
+    transform: rotateY(-12deg) translateX(-18px);
+    transform-origin: center;
+    transition: opacity .48s ease, transform .48s cubic-bezier(.34,.1,.68,.55);
+  }
+  .advantages-grid.advantages-anim .advantage-card.visible {
+    opacity: 1;
+    transform: rotateY(0) translateX(0);
+  }
+
+  /* Social cards: bounce up entrance */
+  .social-grid.social-anim .social-card {
+    opacity: 0;
+    transform: translateY(28px) scale(.96);
+    transition: opacity .5s ease, transform .5s cubic-bezier(.34,.1,.68,.55);
+  }
+  .social-grid.social-anim .social-card.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  /* Review grid: gentle flip + fade entrance */
+  .review-grid.reviews-anim .review-card {
+    opacity: 0;
+    transform: perspective(600px) rotateY(15deg) translateZ(-20px);
+    transition: opacity .5s ease, transform .5s cubic-bezier(.34,.1,.68,.55);
+  }
+  .review-grid.reviews-anim .review-card.visible {
+    opacity: 1;
+    transform: perspective(600px) rotateY(0) translateZ(0);
+  }
+
   .advantage-card h4 {
     margin-top: 12px;
   }
