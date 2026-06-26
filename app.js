@@ -147,6 +147,19 @@ let state = {
     'جنوب سيناء': 140
   },
   coupons: [],
+  gifts: {
+    enabled: false,
+    items: [
+      { title: '', image: '' },
+      { title: '', image: '' },
+      { title: '', image: '' },
+      { title: '', image: '' },
+      { title: '', image: '' },
+      { title: '', image: '' },
+      { title: '', image: '' },
+      { title: '', image: '' }
+    ]
+  },
   admin: { authenticated: false, name: 'مدير FARFASHA' },
 };
 let categoryEditId = null;
@@ -445,26 +458,7 @@ async function initSupabaseClient() {
         console.warn('Supabase official client create failed:', e?.message || e);
       }
     }
-    let lastErr = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        await loadSupabaseScript();
-        if (window.supabase && typeof window.supabase.createClient === 'function') {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
-          console.debug('Supabase official client initialized after loading SDK', { client: supabaseClient?.constructor?.name });
-          return;
-        }
-        lastErr = new Error('Supabase SDK loaded but createClient unavailable');
-        break;
-      } catch (loadError) {
-        lastErr = loadError;
-        console.warn(`Supabase SDK load attempt ${attempt + 1} failed:`, loadError?.message || loadError);
-        await new Promise(res => setTimeout(res, 300 * (attempt + 1)));
-      }
-    }
-    if (lastErr) {
-      console.info('Supabase official client unavailable, continuing with REST fallback', lastErr?.message || lastErr);
-    }
+    console.info('Supabase SDK loading disabled; using lightweight REST fallback only.');
   };
 
   try {
@@ -1002,7 +996,13 @@ function saveCartState() {
   try {
     const user = window.currentAuthUser || null;
     const key = user && user.id ? `farfashaCart_${user.id}` : 'farfashaCart_guest';
-    localStorage.setItem(key, JSON.stringify({ items: state.cart || [] }));
+    // Save only essential cart data to avoid localStorage quota exceeded
+    const compactCart = (state.cart || []).map(item => ({
+      id: item.id,
+      quantity: item.quantity,
+      options: item.options || []
+    }));
+    localStorage.setItem(key, JSON.stringify({ items: compactCart }));
     return true;
   } catch (e) {
     console.warn('saveCartState failed', e?.message || e);
@@ -1013,16 +1013,70 @@ function saveCartState() {
 function loadCartState() {
   try {
     const user = window.currentAuthUser || null;
-    const key = user && user.id ? `farfashaCart_${user.id}` : 'farfashaCart_guest';
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.items)) return parsed;
-    return null;
+    const userKey = user && user.id ? `farfashaCart_${user.id}` : null;
+    const guestKey = 'farfashaCart_guest';
+    let raw = null;
+    let parsed = null;
+    let cartItems = [];
+
+    if (userKey) {
+      raw = localStorage.getItem(userKey);
+      if (raw) {
+        parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.items)) {
+          cartItems = parsed.items;
+        }
+      }
+      // If no user cart, try to migrate from guest cart
+      if (cartItems.length === 0) {
+        const guestRaw = localStorage.getItem(guestKey);
+        if (guestRaw) {
+          parsed = JSON.parse(guestRaw);
+          if (parsed && Array.isArray(parsed.items)) {
+            cartItems = parsed.items;
+          }
+        }
+      }
+    } else {
+      const key = guestKey;
+      raw = localStorage.getItem(key);
+      if (raw) {
+        parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.items)) {
+          cartItems = parsed.items;
+        }
+      }
+    }
+
+    if (cartItems.length === 0) return null;
+
+    // Return compact cart items only - don't try to rebuild with product data yet
+    // Product data will be matched after products are fully loaded
+    return { items: cartItems, isCompact: true };
   } catch (e) {
     console.warn('loadCartState failed', e?.message || e);
     return null;
   }
+}
+
+function rebuildCartWithProductData(compactCart) {
+  if (!compactCart || !Array.isArray(compactCart)) return [];
+  
+  const fullCart = compactCart.map(compact => {
+    const product = state.products.find(p => p.id === compact.id);
+    if (!product) return null;
+    return {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      img: product.img,
+      quantity: compact.quantity,
+      options: compact.options || [],
+      category: product.category
+    };
+  }).filter(Boolean);
+
+  return fullCart;
 }
 
 async function loadFromFirestore(collectionName, docId) {
@@ -1562,7 +1616,8 @@ async function loadOrdersForCurrentUser() {
   const user = window.currentAuthUser;
   const email = (user.email || '').toLowerCase().trim();
   const userId = user.id || null;
-  const columns = 'id,order_number,customer,phone,governorate,address,payment,notes,coupon,coupon_discount,shipping_cost,items,total,created_at,status,user_id,user_email,date';
+  // use `created_at` column (Postgres timestamp) instead of non-existent `date` column
+  const columns = 'id,order_number,customer,phone,governorate,address,payment,notes,coupon,coupon_discount,shipping_cost,items,total,created_at,status,user_id,user_email';
 
   const buildOrderQuery = (filter) => {
     let path = `orders?select=${columns}`;
@@ -1756,6 +1811,12 @@ async function saveCollectionToFirestore(collectionName, items) {
           for (const r of group) {
             if (typeof r.id === 'number' && r.id > 1e11) delete r.id;
           }
+          // Ensure order_number values are unique against server before attempting insert
+          try {
+            await ensureUniqueOrderNumbersForGroup(group);
+          } catch (ensureErr) {
+            console.warn('ensureUniqueOrderNumbersForGroup failed:', ensureErr?.message || ensureErr);
+          }
         }
         const groupHasId = group.length > 0 && Object.prototype.hasOwnProperty.call(group[0], 'id');
         const url = groupHasId ? `${collectionName}?on_conflict=id` : collectionName;
@@ -1769,10 +1830,31 @@ async function saveCollectionToFirestore(collectionName, items) {
           console.log(`Successfully saved ${collectionName} to Supabase via REST fallback`, restResult);
         } catch (groupError) {
           const message = String(groupError.message || '');
+          // If orders table is missing user columns, surface a clear error
           if (collectionName === 'orders' && (message.includes("Could not find the 'user_email' column") || message.includes("Could not find the 'user_id' column") || message.includes('column "user_email"') || message.includes('column "user_id"'))) {
             console.error('Supabase orders table is missing required user_id/user_email columns. Without these columns, orders cannot be matched to users across devices.');
             throw new Error('Orders save failed because orders.user_id or orders.user_email column is missing in Supabase schema.');
           }
+
+          // Defensive: if REST returned duplicate key for order_number, try to reassign unique numbers and retry once
+          if (collectionName === 'orders' && (message.includes('duplicate key') || message.includes('orders_order_number_key') || message.includes('order_number)='))) {
+            try {
+              console.warn('Detected duplicate order_number on REST insert. Reassigning order numbers and retrying.');
+              await ensureUniqueOrderNumbersForGroup(group);
+              const retryUrl = groupHasId ? `${collectionName}?on_conflict=id` : collectionName;
+              const retryResult = await directSupabaseRequest(
+                retryUrl,
+                'POST',
+                group,
+                groupHasId ? { Prefer: 'return=representation,resolution=merge-duplicates' } : undefined
+              );
+              console.log(`Retry save ${collectionName} succeeded after reassigning order numbers`, retryResult);
+              continue; // proceed to next group
+            } catch (retryErr) {
+              console.warn('Retry after reassigning order numbers failed:', retryErr?.message || retryErr);
+            }
+          }
+
           throw groupError;
         }
       }
@@ -1908,6 +1990,61 @@ function formatPrice(value) {
   return `${value.toLocaleString('en-US')} EGP`;
 }
 
+// show a transient notification under the top bar (mobile-friendly)
+function showTopNotification(message, timeout = 2500, type = 'success') {
+  try {
+    let container = document.getElementById('top-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'top-toast-container';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `top-toast top-toast--${type}`;
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+
+    const msg = document.createElement('span');
+    msg.className = 'toast-message';
+    msg.textContent = message;
+
+    const accent = document.createElement('span');
+    accent.className = 'toast-accent';
+    accent.setAttribute('aria-hidden', 'true');
+
+    const bar = document.createElement('span');
+    bar.className = 'toast-bar';
+
+    const check = document.createElement('span');
+    check.className = 'toast-check';
+    check.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M20 6L9 17l-5-5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    `;
+
+    accent.appendChild(bar);
+    accent.appendChild(check);
+
+    toast.appendChild(msg);
+    toast.appendChild(accent);
+    container.appendChild(toast);
+
+    // force a reflow so CSS animations apply
+    // eslint-disable-next-line no-unused-expressions
+    toast.offsetHeight;
+    toast.classList.add('show');
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 360);
+    }, timeout);
+  } catch (e) {
+    try { alert(message); } catch (err) {}
+  }
+}
+
 function getNextOrderNumber() {
   const existingNumbers = state.orders
     .map(order => Number(order.orderNumber))
@@ -1954,6 +2091,82 @@ function normalizeOrderNumbers() {
   state.orders = state.orders.map(o => ({ ...o, orderNumber: idToNumber.get(o.id) || o.orderNumber || (nextNumber++) }));
 
   try { localStorage.setItem('nextOrderNumber', String(nextNumber)); } catch (e) {}
+}
+
+// Fetch existing order_number values from server (REST) or fall back to local state
+async function getExistingOrderNumbers() {
+  const set = new Set();
+  try {
+    // Try REST request to fetch order numbers
+    const rows = await directSupabaseRequest('orders?select=order_number', 'GET');
+    if (Array.isArray(rows)) {
+      rows.forEach(r => {
+        const n = Number(r.order_number || r.orderNumber);
+        if (!Number.isNaN(n)) set.add(n);
+      });
+      return set;
+    }
+  } catch (err) {
+    console.warn('getExistingOrderNumbers REST fetch failed, falling back to local state:', err?.message || err);
+  }
+  // fallback: use in-memory orders
+  try {
+    (state.orders || []).forEach(o => {
+      const n = Number(o.orderNumber || o.order_number);
+      if (!Number.isNaN(n)) set.add(n);
+    });
+  } catch (e) {}
+  return set;
+}
+
+// Ensure each row in `group` has a unique `order_number` (avoids 409 on insert)
+async function ensureUniqueOrderNumbersForGroup(group) {
+  if (!Array.isArray(group) || group.length === 0) return;
+  const existing = await getExistingOrderNumbers();
+  for (const row of group) {
+    // canonical DB field is `order_number` (mapCollectionToDb sets this)
+    let cur = typeof row.order_number !== 'undefined' ? Number(row.order_number) : (typeof row.orderNumber !== 'undefined' ? Number(row.orderNumber) : NaN);
+    if (!Number.isNaN(cur) && !existing.has(cur)) {
+      existing.add(cur);
+      continue;
+    }
+    // generate a candidate until unique
+    let candidate = generateOrderNumber();
+    // avoid infinite loop: try limited times
+    let tries = 0;
+    while (existing.has(candidate) && tries < 50) {
+      candidate = generateOrderNumber();
+      tries++;
+    }
+    // assign to both possible keys to be safe
+    row.order_number = candidate;
+    row.orderNumber = candidate;
+    existing.add(candidate);
+
+    // Also update in-memory state.orders to reflect assigned number so UI is consistent
+    try {
+      if (typeof row.id !== 'undefined' && row.id !== null) {
+        const mem = state.orders.find(o => String(o.id) === String(row.id));
+        if (mem) {
+          mem.orderNumber = candidate;
+          mem.order_number = candidate;
+        }
+      } else {
+        // fallback: try to find by matching customer + total + createdAt
+        const mem = state.orders.find(o => {
+          try {
+            return String(o.customer || '').trim() === String(row.customer || '').trim()
+              && Number(o.total || o.total) === Number(row.total || row.total)
+              && (String(o.createdAt || o.created_at || '').startsWith(String(row.createdAt || row.created_at || '')) || true);
+          } catch (e) { return false; }
+        });
+        if (mem) {
+          mem.orderNumber = candidate;
+          mem.order_number = candidate;
+        }
+      }
+    } catch (e) { /* ignore update errors */ }
+  }
 }
 
 function getProductCardFooter(product, stopPropagation = false) {
@@ -2741,9 +2954,109 @@ function renderSliderImages() {
   renderHomeSlider();
 }
 
+
 function openSliderImagePicker() {
   const input = document.getElementById('slider-image-input');
   if (input) input.click();
+}
+
+function setGiftsEnabled(event) {
+  const enabled = event?.target?.checked ?? false;
+  state.gifts.enabled = enabled;
+  saveGiftSettings();
+  showTopNotification(`صفحة الهدايا ${enabled ? 'مفعلة' : 'معطلة'}`, 2200, 'success');
+}
+
+function updateGiftTitle(index, event) {
+  if (!state.gifts.items[index]) return;
+  state.gifts.items[index].title = event.target.value || '';
+  saveGiftSettings();
+}
+
+function triggerGiftImageUpload(index) {
+  const input = document.getElementById(`gift-image-input-${index}`);
+  if (input) input.click();
+}
+
+function handleGiftImageUpload(event, index) {
+  const file = event.target.files?.[0];
+  if (!file || !state.gifts.items[index]) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.gifts.items[index].image = reader.result || '';
+    saveGiftSettings();
+    renderGiftFields();
+    showTopNotification('تم حفظ صورة الهدية', 2000, 'success');
+    event.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeGiftImage(index) {
+  if (!state.gifts.items[index]) return;
+  state.gifts.items[index].image = '';
+  saveGiftSettings();
+  renderGiftFields();
+}
+
+function saveGiftSettings() {
+  const payload = {
+    enabled: Boolean(state.gifts.enabled),
+    items: state.gifts.items.map(item => ({
+      title: item.title || '',
+      image: item.image || ''
+    }))
+  };
+  saveToFirestore('settings', 'gifts', payload);
+}
+
+function renderGiftFields() {
+  const container = document.getElementById('gifts-fields-container');
+  if (!container) return;
+  
+  const toggle = document.getElementById('gifts-enabled-toggle');
+  if (toggle) toggle.checked = Boolean(state.gifts.enabled);
+  
+  container.innerHTML = (state.gifts.items || []).map((item, index) => `
+    <div class="gift-field-card">
+      <label>عنوان الهدية ${index + 1}</label>
+      <input 
+        type="text" 
+        class="gift-title-input" 
+        value="${item.title || ''}" 
+        placeholder="أدخل اسم الهدية"
+        onchange="updateGiftTitle(${index}, event)"
+      />
+      <div class="gift-image-row">
+        ${item.image ? `
+          <div class="image-preview">
+            <img src="${item.image}" alt="صورة الهدية">
+          </div>
+        ` : ''}
+        <button 
+          type="button" 
+          class="secondary-btn gift-delete-btn"
+          onclick="triggerGiftImageUpload(${index})"
+        >صورة</button>
+        ${item.image ? `
+          <button 
+            type="button" 
+            class="secondary-btn gift-delete-btn" 
+            style="background: var(--danger);"
+            onclick="removeGiftImage(${index})"
+          >حذف</button>
+        ` : ''}
+        <input 
+          type="file" 
+          id="gift-image-input-${index}" 
+          style="display:none;" 
+          accept="image/*"
+          onchange="handleGiftImageUpload(event, ${index})"
+        />
+      </div>
+    </div>
+  `).join('');
 }
 
 function normalizeSliderImage(image) {
@@ -2904,11 +3217,16 @@ function addToCart(productId, options = []) {
   }
   // try to find identical cart line (same product id and same options)
   const existing = state.cart.find(item => item.id === productId && JSON.stringify(item.options || []) === JSON.stringify(options || []));
-  if (existing) existing.quantity += 1;
-  else state.cart.push({ id: product.id, name: product.name, price: product.price, img: product.img, options: options || [], quantity: 1 });
-  saveCartState();
-  renderCart();
-  alert('✅ المنتج اتضاف للسلة');
+  if (existing) {
+    saveCartState();
+    renderCart();
+    showTopNotification('المنتج موجود بالفعل في السلة، استخدم السلة لتعديل الكمية', 3200, 'warning');
+  } else {
+    state.cart.push({ id: product.id, name: product.name, price: product.price, img: product.img, options: options || [], quantity: 1 });
+    saveCartState();
+    renderCart();
+    showTopNotification('تم إضافة المنتج للسلة');
+  }
 }
 
 function removeFromCart(productId) {
@@ -3044,10 +3362,11 @@ async function submitOrder(event) {
     user_email: resolvedEmail
   };
   state.orders.unshift(order);
-  saveCollectionToFirestore('orders', [order]);
+  await saveCollectionToFirestore('orders', [order]);
   state.cart = [];
   saveCartState();
   renderCart();
+  buildSummary();
   event.target.reset();
   confirmMessage.classList.remove('hidden');
   renderOrders();
@@ -3638,13 +3957,14 @@ async function loadRemoteData() {
   const categoriesPromise = loadCategoriesPreview();
   const productsPreviewPromise = loadProductsPreview(200);
   const productsFullPromise = Promise.resolve([]);
-  const couponsPromise = loadCollectionFromFirestore('coupons', { select: 'id,code,type,value,start,end,active' });
+  const couponsPromise = loadCollectionFromFirestore('coupons', { select: 'id,code,type,value,start,end_date,active' });
   const ordersPromise = (state.admin && state.admin.authenticated) ? loadCollectionFromFirestore('orders') : loadOrdersForCurrentUser();
   const socialPromise = loadSocialSettings();
   const cartPromise = Promise.resolve(loadCartState());
   const reviewImagesPromise = loadFromFirestore('settings', 'review_images');
   const sliderImagesPromise = loadFromFirestore('settings', 'slider_images');
   const shippingRatesPromise = loadFromFirestore('settings', 'shipping_rates');
+  const giftsPromise = loadFromFirestore('settings', 'gifts');
 
   categoriesPromise.then(savedCategoriesResult => {
     if (Array.isArray(savedCategoriesResult) && savedCategoriesResult.length > 0) {
@@ -3669,6 +3989,18 @@ async function loadRemoteData() {
       if (adminPanel && !adminPanel.classList.contains('hidden') && activeAdminTab?.dataset.tab === 'products') {
         renderAdminProducts(adminProductSearch, adminProductPage);
       }
+      // After products are loaded, rebuild cart with full product data
+      cartPromise.then(compactCartResult => {
+        if (compactCartResult && compactCartResult.isCompact && Array.isArray(compactCartResult.items)) {
+          const fullCart = rebuildCartWithProductData(compactCartResult.items);
+          if (fullCart.length > 0) {
+            state.cart = fullCart;
+            renderCart();
+          }
+        }
+      }).catch(err => {
+        console.warn('Failed to rebuild cart with product data:', err?.message || err);
+      });
     }
   }).catch(err => {
     console.warn('Failed to load product preview:', err?.message || err);
@@ -3744,15 +4076,6 @@ async function loadRemoteData() {
     console.warn('Failed to load social settings:', err?.message || err);
   });
 
-  cartPromise.then(savedCartResult => {
-    if (savedCartResult) {
-      state.cart = savedCartResult.items || [];
-      renderCart();
-    }
-  }).catch(err => {
-    console.warn('Failed to load cart:', err?.message || err);
-  });
-
   reviewImagesPromise.then(savedReviewImagesResult => {
     if (savedReviewImagesResult) {
       state.reviewImages = savedReviewImagesResult.images || [];
@@ -3781,6 +4104,7 @@ async function loadRemoteData() {
     console.warn('Failed to load slider images:', err?.message || err);
   });
 
+
   shippingRatesPromise.then(savedShippingRatesResult => {
     if (savedShippingRatesResult) {
       const rates = savedShippingRatesResult.rates || savedShippingRatesResult.data?.rates || savedShippingRatesResult.value?.rates || savedShippingRatesResult;
@@ -3802,6 +4126,21 @@ async function loadRemoteData() {
     console.warn('Failed to load coupons:', err?.message || err);
   });
 
+  giftsPromise.then(savedGiftsResult => {
+    if (savedGiftsResult) {
+      const giftsData = savedGiftsResult.items || savedGiftsResult.data?.items || savedGiftsResult.value?.items;
+      if (giftsData && Array.isArray(giftsData)) {
+        state.gifts.items = giftsData;
+      }
+      if (savedGiftsResult.enabled !== undefined) {
+        state.gifts.enabled = savedGiftsResult.enabled;
+      }
+      renderGiftFields();
+    }
+  }).catch(err => {
+    console.warn('Failed to load gifts:', err?.message || err);
+  });
+
   Promise.allSettled([
     categoriesPromise,
     productsPreviewPromise,
@@ -3812,6 +4151,7 @@ async function loadRemoteData() {
     cartPromise,
     reviewImagesPromise,
     sliderImagesPromise,
+    giftsPromise,
     shippingRatesPromise
   ]).then(() => {
     initRealtimeSubscriptions();
@@ -3827,6 +4167,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderReviewImages();
     renderReviewImagesPreview();
     renderSliderImages();
+    renderGiftFields();
     renderOrders();
     renderCategories();
     populateCategorySelect();
@@ -3903,6 +4244,11 @@ window.previewSliderImages = previewSliderImages;
 window.toggleSliderImageSelection = toggleSliderImageSelection;
 window.removeSliderImage = removeSliderImage;
 window.openSliderImagePicker = openSliderImagePicker;
+window.setGiftsEnabled = setGiftsEnabled;
+window.updateGiftTitle = updateGiftTitle;
+window.triggerGiftImageUpload = triggerGiftImageUpload;
+window.handleGiftImageUpload = handleGiftImageUpload;
+window.removeGiftImage = removeGiftImage;
 window.addOrUpdateCategory = addOrUpdateCategory;
 window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
@@ -4036,6 +4382,18 @@ function restoreAuthState() {
       showAuthContent(true, user);
       try { prefillCheckoutFields(); } catch (e) {}
       // After restoring auth, ensure we load latest orders for the current user from the server
+      try {
+        const savedCart = loadCartState();
+        if (savedCart && savedCart.isCompact && Array.isArray(savedCart.items)) {
+          const fullCart = rebuildCartWithProductData(savedCart.items);
+          if (fullCart.length > 0) {
+            state.cart = fullCart;
+            renderCart();
+          }
+        }
+      } catch (cartErr) {
+        console.warn('restoreAuthState cart load failed:', cartErr?.message || cartErr);
+      }
       (async () => {
         try {
           console.log('restoreAuthState: loading user orders from server for user', user.id);
