@@ -2427,6 +2427,63 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid rgba(255,255,255,.08);
 }
 
+.gifts-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.gift-field-card {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255,255,255,0.03);
+}
+
+.gift-field-card label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.gift-title-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  color: inherit;
+}
+
+.gift-image-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.gift-image-row .gift-delete-btn {
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.gift-field-card .image-preview {
+  justify-content: flex-start;
+}
+
+.gift-field-card .image-preview img {
+  width: 100px;
+  height: 100px;
+}
+
 .image-preview .delete-btn {
   background: rgba(255,79,87,0.9);
   color: #fff;
@@ -3495,6 +3552,81 @@ body.theme-dark .category-item h4 {
     opacity: 1;
     transform: perspective(600px) rotateY(0) translateZ(0);
   }
+
+/* Top toast notification under the top bar */
+#top-toast-container {
+  position: fixed;
+  top: 64px; /* aligns under typical header height; responsive override below */
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1200;
+}
+.top-toast {
+  pointer-events: auto;
+  background: rgba(225, 252, 244, 0.95); /* very light mint */
+  color: #064e3b; /* dark green text */
+  padding: 12px 16px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.35);
+  transform: translateY(-12px) scale(.98);
+  opacity: 0;
+  transition: transform .32s cubic-bezier(.2,.9,.2,1), opacity .28s ease;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 280px;
+  max-width: 760px;
+  width: calc(100% - 40px);
+  overflow: hidden;
+  position: relative;
+}
+.top-toast.show {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.top-toast .toast-message {
+  flex: 1 1 auto;
+  padding: 8px 16px 8px 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.top-toast .toast-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  background: linear-gradient(180deg, #10b981, #059669);
+  border-radius: 10px 0 0 10px;
+  margin-left: 12px;
+  height: calc(100% - 8px);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+  .top-toast.top-toast--warning {
+    background: rgba(255, 247, 237, 0.96);
+    color: #92400e;
+  }
+
+  .top-toast.top-toast--warning .toast-accent {
+    background: linear-gradient(180deg, #f59e0b, #d97706);
+  }
+
+  .top-toast.top-toast--warning .toast-bar {
+    background: #f59e0b;
+  }
+
+
+@media (max-width: 520px) {
+  #top-toast-container { top: 56px; }
+  .top-toast { width: calc(100% - 28px); max-width: 420px; border-radius: 10px; }
+  .top-toast .toast-message { padding: 10px 12px; font-size: 15px; }
+}
 
   .advantage-card h4 {
     margin-top: 12px;
