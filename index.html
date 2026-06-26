@@ -288,7 +288,7 @@
           <div class="form-row">
             <label>الاسم الكامل<input name="name" type="text" placeholder="اكتب اسمك" required></label>
             <label>البريد الإلكتروني<input name="email" type="email" placeholder="example@email.com"></label>
-            <label>رقم التليفون<input name="phone" type="tel" value="2" placeholder="2010XXXXXXXX" required oninput="enforcePhonePrefix(this)"></label>
+            <label>رقم التليفون<input name="phone" type="tel" placeholder="2010XXXXXXXX" required onfocus="enforcePhonePrefix(this)" oninput="enforcePhonePrefix(this)"></label>
             <label>المحافظة<select id="checkout-governorate" name="governorate" onchange="buildSummary()" required></select></label>
             <label>العنوان<textarea name="address" placeholder="العنوان بالكامل" required></textarea></label>
             <label>ملاحظات إضافية<textarea name="notes" placeholder="لو عايز تضيف ملاحظة"></textarea></label>
@@ -339,6 +339,7 @@
           <button type="button" class="tab-btn" data-tab="reviews" onclick="switchAdminTab(event)">آراء العملاء</button>
           <button type="button" class="tab-btn" data-tab="shipping" onclick="switchAdminTab(event)">الشحن</button>
           <button type="button" class="tab-btn" data-tab="coupons" onclick="switchAdminTab(event)">الكوبونات</button>
+          <button type="button" class="tab-btn" data-tab="gifts" onclick="switchAdminTab(event)">الهدايا</button>
         </div>
         <div class="admin-tab-panel" data-tab="products">
           <article class="form-card">
@@ -529,6 +530,18 @@
             </table>
           </div>
         </div>
+        <div class="admin-tab-panel hidden" data-tab="gifts">
+          <article class="form-card">
+            <h3>إدارة الهدايا</h3>
+            <label class="switch-row">تفعيل صفحة الهدايا
+              <div class="switch">
+                <input type="checkbox" id="gifts-enabled-toggle" onchange="setGiftsEnabled(event)">
+                <span class="slider"></span>
+              </div>
+            </label>
+            <div class="gifts-fields-grid" id="gifts-fields-container"></div>
+          </article>
+        </div>
       </div>
     </section>
 
@@ -628,7 +641,6 @@
     </a>
   </nav>
 
-  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/supabase.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
