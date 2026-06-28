@@ -1,6 +1,7 @@
 const sections = {
   home: document.getElementById('section-home'),
   products: document.getElementById('section-products'),
+  gifts: document.getElementById('section-gifts'),
   category: document.getElementById('section-category'),
   'product-detail': document.getElementById('section-product-detail'),
   cart: document.getElementById('section-cart'),
@@ -462,7 +463,8 @@ async function initSupabaseClient() {
   };
 
   try {
-    await tryLoadOfficialClient();
+    // Don't await the official client; use REST fallback immediately
+    tryLoadOfficialClient().catch(e => console.info('Background Supabase SDK initialization failed:', e?.message || e));
   } catch (e) {
     console.info('Background Supabase SDK initialization failed:', e?.message || e);
   }
@@ -1984,6 +1986,7 @@ function handleHashChange() {
   updateNavActive(hash);
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (hash === 'checkout') buildSummary();
+  if (hash === 'gifts') renderGiftsPage();
 }
 
 function formatPrice(value) {
@@ -2670,6 +2673,8 @@ function resetCategoryForm() {
   document.getElementById('category-submit-btn').textContent = 'إضافة فئة';
   document.getElementById('category-name').value = '';
   document.getElementById('category-img-input').value = '';
+  const cancelBtn = document.getElementById('cancel-category-edit-btn');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
 }
 
 async function saveCategories() {
@@ -2773,6 +2778,13 @@ function editCategory(id) {
   document.getElementById('category-form-title').textContent = 'تعديل الفئة';
   document.getElementById('category-submit-btn').textContent = 'تحديث الفئة';
   document.getElementById('category-name').value = category.name;
+  const cancelBtn = document.getElementById('cancel-category-edit-btn');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelCategoryEdit() {
+  resetCategoryForm();
 }
 
 async function deleteCategory(id) {
@@ -2908,10 +2920,18 @@ function addReviewImage(event) {
     saveToFirestore('settings', 'review_images', { images: state.reviewImages });
     renderReviewImages();
     renderReviewImagesPreview();
-    input.value = '';
+    cancelReviewImageEdit();
     alert('تم إضافة صورة رأي العميل بنجاح!');
   };
   reader.readAsDataURL(file);
+}
+
+function cancelReviewImageEdit() {
+  document.getElementById('review-image-input').value = '';
+  document.getElementById('reviewer-name').value = '';
+  document.querySelector('input[name="reviewer-gender"][value="male"]').checked = true;
+  const cancelBtn = document.getElementById('cancel-review-image-btn');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
 }
 
 function previewSliderImages(event) {
@@ -3057,6 +3077,126 @@ function renderGiftFields() {
       </div>
     </div>
   `).join('');
+}
+
+const giftsPageSvg = `
+  <svg class="gift-card-svg" width="800" height="800" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path d="M884.4 389v101.6c0 16-13 29-29 29H570.2V360h285.1c16.1 0 29.1 13 29.1 29" fill="#fe97ac"/>
+    <path d="m793.6 731.9-9 8.7 2.2 12.2-11-5.9-11 5.9 2.2-12.2-9-8.7 12.4-1.8 5.4-11.1 5.5 11.1z" fill="#ebbe3e"/>
+    <path d="m578.2 756.8 15.1 14.7-3.6 20.8 18.7-9.8 18.7 9.8-3.5-20.8 15.1-14.7-20.9-3-9.4-18.9-9.3 18.9zm151.5 130-3.6-20.8 15.1-14.7-20.9-3-9.3-18.9-9.4 18.9-20.9 3 15.1 14.7-3.5 20.8 18.7-9.9zm26.7-345.9-9.3 18.9-20.9 3 15.1 14.7-3.6 20.8 18.7-9.9 18.7 9.9-3.5-20.8 15.1-14.7-20.9-3zM806 727.8l-20.9-3-9.3-18.9-9.3 18.9-20.9 3 15.1 14.7-3.6 20.8 18.7-9.8 18.7 9.8-3.6-20.8zM570.2 531.3h260v345.5c0 16-13 29-29 29h-231zm110.9 136.8 15.2-14.7-20.9-3-9.4-18.9-9.3 18.9-20.9 3 15.1 14.7-3.6 20.8L666 679l18.7 9.9z" fill="#dc0c55"/>
+    <path d="M683 194.9c42.3 0 76.8 34.5 76.8 76.8 0 42.4-34.5 76.8-76.8 76.8H525.1l51.9-78.6c37.6-51.9 61.9-75 106-75" fill="#faf7a6"/>
+    <path d="m806 727.8-15.1 14.7 3.6 20.8-18.7-9.8-18.7 9.8 3.6-20.8-15.1-14.7 20.9-3 9.3-18.9 9.3 18.9zm-21.4 12.8 8.9-8.7-12.3-1.7-5.5-11.1-5.5 11.1-12.3 1.7 8.9 8.7-2.2 12.2 11-5.8 11 5.8z" fill="#ef4668"/>
+    <path d="m751 565.1 5.4-11 5.6 11 12.2 1.9-8.8 8.5 2.1 12.2-11.1-5.7-10.9 5.7 2.1-12.2-8.9-8.5z" fill="#ebbe3e"/>
+    <path d="m771.6 577.6 3.5 20.8-18.7-9.9-18.7 9.9 3.6-20.8-15.1-14.7 20.9-3 9.3-18.9 9.4 18.9 20.9 3zm-15.2-23.5-5.5 11-12.3 1.9 8.9 8.6-2.1 12.2 10.9-5.7 11 5.7-2.1-12.2 8.8-8.6-12.2-1.9z" fill="#ef4668"/>
+    <path d="m719.8 863.9 2.1 12.2-10.9-5.7-11 5.7 2.1-12.2-8.9-8.6 12.2-1.9 5.6-11.1 5.5 11.1 12.3 1.9z" fill="#ebbe3e"/>
+    <path d="m726.1 866 3.6 20.8-18.7-9.9-18.7 9.9 3.5-20.8-15.1-14.7 20.9-3 9.4-18.9 9.3 18.9 20.9 3zm-4.2 10.1-2.1-12.2 8.9-8.6-12.3-1.9-5.5-11.1-5.6 11.1-12.2 1.9 8.8 8.6-2.1 12.2 11-5.7z" fill="#ef4668"/>
+    <path d="m674.9 666 2.1 12.3-11-5.8-11 5.8 2.1-12.3-8.9-8.6 12.3-1.8 5.5-11.1 5.4 11.1 12.3 1.8z" fill="#ebbe3e"/>
+    <path d="m666 631.4 9.4 18.9 20.9 3-15.2 14.7 3.6 20.8L666 679l-18.7 9.9 3.6-20.8-15.1-14.7 20.9-3zm11 46.9-2.1-12.3 8.8-8.6-12.3-1.9-5.5-11-5.5 11-12.3 1.9 8.9 8.6-2.1 12.3 10.9-5.8z" fill="#ef4668"/>
+    <path d="m613.9 759.1 12.2 1.8-8.8 8.7 2.1 12.2-11-5.8-11 5.8 2.1-12.2-8.9-8.7 12.3-1.8 5.5-11.1z" fill="#ebbe3e"/>
+    <path d="m613.9 759.1-5.6-11.1-5.5 11.1-12.3 1.7 8.9 8.7-2.1 12.2 10.9-5.8 11 5.8-2.1-12.2 8.8-8.7zm9.7 12.5 3.5 20.8-18.7-9.8-18.7 9.8 3.6-20.8-15.1-14.7 20.9-3 9.3-18.9 9.4 18.9 20.9 3z" fill="#ef4668"/>
+    <path d="M570.3 143.4c21.9 38.1 18.5 76.5-11.4 128.3l-45.8 67.7-77.7-115.3c-10.1-17.4-12.5-39.4-6.7-60.2 5.7-20.8 19.2-38.4 36.7-48.7 11.8-6.7 25-10.3 38.2-10.3 6.7 0 13.5.9 20.1 2.7 19.7 5.4 36.4 18.1 46.6 35.8m-11.8 447.9v314.5h-91.9V360H513l.1.1.2-.1h45.2v171.3zM451.4 269.6l52.1 78.8H345.6c-42.4 0-76.8-34.4-76.8-76.8 0-42.3 34.4-76.8 76.8-76.8 44 .1 68.2 23.2 105.8 74.8" fill="#faf7a6"/>
+    <path d="M455 360v159.7H173.1c-16 0-29-13-29-29V389c0-16 13-29 29-29z" fill="#fe97ac"/>
+    <path d="m418 760.9-8.8 8.7 2.1 12.2-11-5.8-11 5.8 2.1-12.2-8.9-8.7 12.3-1.8 5.5-11.1 5.5 11.1z" fill="#ebbe3e"/>
+    <path d="m409.7 753.8 20.9 3-15.1 14.7 3.5 20.8-18.7-9.8-18.7 9.8 3.6-20.8-15.1-14.7 20.9-3 9.3-18.9zm-.5 15.8 8.8-8.7-12.2-1.7-5.6-11.1-5.5 11.1-12.3 1.7 8.9 8.7-2.1 12.2 10.9-5.8 11 5.8z" fill="#ef4668"/>
+    <path d="m351.6 666 2.1 12.3-10.9-5.8-11.1 5.8 2.1-12.3-8.8-8.6 12.2-1.8 5.6-11.1 5.4 11.1 12.2 1.8z" fill="#ebbe3e"/>
+    <path d="m352.1 650.3 20.9 3-15.1 14.7 3.5 20.8-18.6-9.9-18.7 9.9 3.5-20.8-15.1-14.7 20.9-3 9.4-18.9zm1.6 28-2.1-12.3 8.8-8.6-12.2-1.9-5.5-11-5.6 11-12.2 1.9 8.8 8.6-2.1 12.3 11-5.8z" fill="#ef4668"/>
+    <path d="m315.5 855.3-9 8.6 2.3 12.2-11.1-5.7-11 5.7 2.2-12.2-8.9-8.6 12.3-1.9 5.4-11.1 5.5 11.1z" fill="#ebbe3e"/>
+    <path d="m297.7 829.3 9.3 18.9 20.9 3-15.1 14.8 3.6 20.8-18.7-9.9-18.7 9.9 3.6-20.8-15.1-14.7 20.9-3zm5.5 24.1-5.5-11.1-5.5 11.1-12.3 1.9 8.9 8.6-2.2 12.2 11-5.7 11 5.7-2.2-12.2 8.9-8.6z" fill="#ef4668"/>
+    <path d="m234.4 567 12.3-1.9 5.5-11 5.6 11L270 567l-8.9 8.5 2.1 12.2-11-5.7-10.9 5.7 2.1-12.2z" fill="#ebbe3e"/>
+    <path d="m246.7 565.1-12.3 1.9 8.9 8.6-2.1 12.2 10.9-5.7 11 5.7-2.1-12.2 8.8-8.6-12.2-1.9-5.6-11zm-9.6 12.5L222 562.9l20.9-3 9.3-18.9 9.4 18.9 20.9 3-15.1 14.7 3.5 20.8-18.7-9.9-18.7 9.9z" fill="#ef4668"/>
+    <path d="m232.9 746.9-11 5.9 2.1-12.2-8.8-8.7 12.2-1.8 5.5-11.1 5.5 11.1 12.3 1.8-8.9 8.7 2 12.2z" fill="#ebbe3e"/>
+    <path d="m316.4 886.8-3.6-20.8 15.1-14.7-20.9-3-9.3-18.9-9.3 18.9-20.9 3 15.1 14.7-3.6 20.8 18.7-9.9zm7.7-197.9 18.7-9.9 18.6 9.9-3.5-20.8 15.1-14.7-20.9-3-9.3-18.9-9.4 18.9-20.9 3 15.1 14.7zm106.5 67.9-20.9-3-9.4-18.9-9.3 18.9-20.9 3 15.1 14.7-3.6 20.8 18.7-9.8 18.7 9.8-3.5-20.8zm-232.3 120V531.3H455v374.5H227.4c-16.1 0-29.1-13-29.1-29m15.9-113.5 18.7-9.8 18.7 9.8-3.6-20.8 15.1-14.7-20.9-3-9.3-18.9-9.4 18.9-20.9 3 15.1 14.7zm19.3-164.9 18.7-9.9 18.7 9.9-3.5-20.8 15.1-14.7-20.9-3-9.4-18.9-9.3 18.9-20.9 3 15.1 14.7z" fill="#dc0c55"/>
+    <path d="m238.4 730.1-5.5-11.1-5.6 11.1-12.2 1.7 8.8 8.7-2.1 12.2 11-5.8 10.9 5.8-2.1-12.2 8.9-8.7zm-14.9-5.3 9.4-18.9 9.3 18.9 20.9 3-15.1 14.7 3.6 20.8-18.7-9.8-18.7 9.8 3.5-20.8-15.1-14.7z" fill="#ef4668"/>
+    <path d="M345.6 348.4h157.9l-52.1-78.8c-37.5-51.6-61.8-74.7-105.8-74.7-42.4 0-76.8 34.5-76.8 76.8s34.4 76.7 76.8 76.7m213.3-76.6c29.8-51.8 33.3-90.2 11.4-128.3-10.2-17.8-26.8-30.4-46.6-35.8-6.6-1.7-13.4-2.7-20.1-2.7-13.2 0-26.4 3.6-38.2 10.3-17.5 10.2-31 27.9-36.7 48.7-5.8 20.8-3.4 42.7 6.7 60.2l77.7 115.3zm-.4 259.5V360h-45.2l-.1.1-.2-.1h-46.4v545.8h92V531.3zM198.3 876.8c0 16 13 29 29 29H455V531.3H198.3zm-25.2-357.1H455V360H173.1c-16 0-29 13-29 29v101.6c0 16.1 13 29.1 29 29.1M683 348.4c42.3 0 76.8-34.4 76.8-76.8 0-42.3-34.5-76.8-76.8-76.8-44.1 0-68.4 23.1-106 74.9l-51.9 78.6H683zm118.1 557.4c16 0 29-13 29-29V531.3h-260v374.5zm40.7-374.5v345.5c0 22.4-18.2 40.6-40.6 40.6H227.4c-22.4 0-40.6-18.2-40.6-40.6V531.3h-13.6c-22.4 0-40.6-18.2-40.6-40.6V389c0-22.4 18.2-40.6 40.6-40.6H302c-26.7-15.2-44.7-43.9-44.7-76.8 0-48.7 39.6-88.4 88.4-88.4 29.7 0 51.1 9.1 72.1 28.5-4.8-16.1-4.9-33.9-.2-50.9 6.6-23.7 21.9-43.9 42.2-55.5 20.4-11.8 44.2-15 67-8.8 22.9 6 41.9 20.7 53.7 41.1 17.7 30.5 20.3 62 7.9 98.5 29.7-36.3 54.6-52.8 94.9-52.8 48.7 0 88.4 39.7 88.4 88.4 0 32.9-18.1 61.5-44.8 76.8h128.8c22.4 0 40.6 18.2 40.6 40.6v101.6c0 22.4-18.2 40.6-40.6 40.6zm13.6-11.6c16 0 29-13 29-29V389c0-16-13-29-29-29H570.2v159.7z" fill="#ef4668"/>
+  </svg>
+`;
+
+function closeGiftModal() {
+  const modal = document.getElementById('gift-modal');
+  if (modal) {
+    modal.classList.remove('is-visible');
+    setTimeout(() => modal.remove(), 220);
+  }
+  document.body.classList.remove('gift-modal-open');
+}
+
+function openGiftModal(index) {
+  const enabledItems = (state.gifts.items || []).filter(item => item.title && item.title.trim());
+  const item = enabledItems[index];
+  if (!item) return;
+
+  selectGiftCard(index);
+
+  const existingModal = document.getElementById('gift-modal');
+  if (existingModal) existingModal.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'gift-modal';
+  modal.className = 'gift-modal-overlay';
+  modal.innerHTML = `
+    <div class="gift-modal-backdrop" onclick="closeGiftModal()"></div>
+    <div class="gift-modal-shell">
+      <div class="gift-modal-confetti" aria-hidden="true">
+        ${Array.from({ length: 24 }, (_, confettiIndex) => `<span class="gift-confetti confetti-${confettiIndex % 6}"></span>`).join('')}
+      </div>
+      <div class="gift-modal-ribbons" aria-hidden="true">
+        ${Array.from({ length: 8 }, (_, ribbonIndex) => `<span class="gift-ribbon gift-ribbon-${ribbonIndex + 1}"></span>`).join('')}
+      </div>
+      <div class="gift-modal-sparks" aria-hidden="true">
+        ${Array.from({ length: 6 }, (_, sparkIndex) => `<span class="gift-spark gift-spark-${sparkIndex + 1}"></span>`).join('')}
+      </div>
+      <div class="gift-modal-frame">
+        <div class="gift-modal-image-wrap">
+          ${item.image ? `<img src="${item.image}" alt="${item.title}" class="gift-modal-image">` : `<div class="gift-modal-svg-wrap">${giftsPageSvg}</div>`}
+        </div>
+        <div class="gift-modal-name">${item.title}</div>
+      </div>
+      <button type="button" class="gift-modal-button" onclick="closeGiftModal()">احصل على الهديه</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  document.body.classList.add('gift-modal-open');
+  requestAnimationFrame(() => modal.classList.add('is-visible'));
+}
+
+function selectGiftCard(index) {
+  const cards = Array.from(document.querySelectorAll('.gift-card'));
+  cards.forEach((card, cardIndex) => {
+    const isSelected = cardIndex === index;
+    card.classList.toggle('gift-card-selected', isSelected);
+    card.classList.toggle('gift-card-disabled', !isSelected);
+    card.setAttribute('aria-disabled', String(!isSelected));
+  });
+}
+
+function renderGiftsPage() {
+  const giftsGrid = document.getElementById('gifts-grid');
+  if (!giftsGrid) return;
+  
+  const enabledItems = (state.gifts.items || []).filter(item => item.title && item.title.trim());
+  
+  if (!enabledItems.length) {
+    giftsGrid.innerHTML = '<p class="card-detail" style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">لم يتم إضافة هدايا بعد.</p>';
+    return;
+  }
+  
+  giftsGrid.innerHTML = enabledItems.map((item, index) => {
+    return `
+      <article class="product-card gift-card" data-gift-index="${index}" aria-disabled="false">
+        <div class="gift-card-visual">
+          <div class="gift-card-svg-wrap" aria-hidden="true">
+            ${giftsPageSvg}
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  const cards = Array.from(giftsGrid.querySelectorAll('.gift-card'));
+  cards.forEach((card, index) => {
+    card.addEventListener('click', () => openGiftModal(index));
+  });
 }
 
 function normalizeSliderImage(image) {
@@ -3262,6 +3402,11 @@ function buildSummary() {
   const coupon = couponCode ? findValidCoupon(couponCode) : null;
   const discount = coupon ? getCouponDiscount(totalProducts, coupon) : 0;
   const grandTotal = totalProducts + delivery - discount;
+  const giftRewardButton = document.getElementById('gift-reward-button');
+  if (giftRewardButton) {
+    const rewardVisible = grandTotal >= 2500 && !coupon;
+    giftRewardButton.classList.toggle('hidden', !rewardVisible);
+  }
   orderSummary.innerHTML = `
     <div class="summary-box">
       <h3>ملخص الطلب</h3>
@@ -3373,6 +3518,10 @@ async function submitOrder(event) {
   renderUserOrders();
   orderCount.textContent = state.orders.length;
   adminOrderBadge.textContent = state.orders.length;
+}
+
+function goToGiftPage() {
+  window.location.hash = '#gifts';
 }
 
 function renderOrders(search = '') {
@@ -3488,6 +3637,12 @@ function resetCouponForm() {
   document.getElementById('coupon-id').value = '';
   const submitBtn = document.querySelector('#coupon-form button[type="submit"]');
   if (submitBtn) submitBtn.textContent = 'حفظ الكوبون';
+  const cancelBtn = document.getElementById('cancel-coupon-edit-btn');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
+}
+
+function cancelCouponEdit() {
+  resetCouponForm();
 }
 
 function editCoupon(couponId) {
@@ -3503,6 +3658,9 @@ function editCoupon(couponId) {
   document.getElementById('coupon-id').value = coupon.id;
   const submitBtn = document.querySelector('#coupon-form button[type="submit"]');
   if (submitBtn) submitBtn.textContent = 'تحديث الكوبون';
+  const cancelBtn = document.getElementById('cancel-coupon-edit-btn');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function saveCoupon(event) {
@@ -3558,9 +3716,11 @@ async function saveCoupon(event) {
     });
   }
 
-  saveCollectionToFirestore('coupons', state.coupons);
+  await saveCollectionToFirestore('coupons', state.coupons);
   resetCouponForm();
-  }
+  renderCoupons(adminCouponSearch);
+}
+
 function toggleCouponActive(couponId) {
   const coupon = state.coupons.find(item => item.id === couponId);
   if (!coupon) return;
@@ -3668,6 +3828,7 @@ function renderAdminProducts(search = '', page = 1) {
 function editProduct(id) {
   const product = state.products.find(p => p.id === id);
   if (!product) return;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   editProductId = id;
   document.getElementById('new-name').value = product.name;
   document.getElementById('new-price').value = product.price;
@@ -3885,6 +4046,7 @@ function updateSocialLinksDisplay() {
 }
 
 function switchAdminTab(event) {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   const target = event.currentTarget.dataset.tab;
   adminTabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === target));
   document.querySelectorAll('.admin-tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.dataset.tab !== target));
@@ -3946,6 +4108,12 @@ function fillSocialForm() {
   document.getElementById('facebook-url').value = state.social.facebook !== '#' ? state.social.facebook : '';
 }
 
+function cancelSocialLinksEdit() {
+  fillSocialForm();
+  const cancelBtn = document.getElementById('cancel-social-links-btn');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
+}
+
 async function loadRemoteData() {
   if (!navigator.onLine) {
     console.warn('Navigator reports offline — attempting remote data load anyway (some devices mis-report network).');
@@ -3957,7 +4125,7 @@ async function loadRemoteData() {
   const categoriesPromise = loadCategoriesPreview();
   const productsPreviewPromise = loadProductsPreview(200);
   const productsFullPromise = Promise.resolve([]);
-  const couponsPromise = loadCollectionFromFirestore('coupons', { select: 'id,code,type,value,start,end_date,active' });
+  const couponsPromise = loadCollectionFromFirestore('coupons');
   const ordersPromise = (state.admin && state.admin.authenticated) ? loadCollectionFromFirestore('orders') : loadOrdersForCurrentUser();
   const socialPromise = loadSocialSettings();
   const cartPromise = Promise.resolve(loadCartState());
@@ -4121,6 +4289,7 @@ async function loadRemoteData() {
   couponsPromise.then(savedCouponsResult => {
     if (Array.isArray(savedCouponsResult) && savedCouponsResult.length > 0) {
       state.coupons = savedCouponsResult;
+      renderCoupons();
     }
   }).catch(err => {
     console.warn('Failed to load coupons:', err?.message || err);
