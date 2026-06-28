@@ -2567,6 +2567,37 @@ body.gift-modal-open {
   color: var(--text-muted);
 }
 
+.order-detail-row.order-detail-gift {
+  background: rgba(65, 105, 225, 0.06);
+  border-inline-start: 3px solid #4169E1;
+}
+
+.order-detail-row.order-detail-gift .detail-name {
+  color: #4169E1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.order-detail-row.order-detail-gift .detail-cell {
+  color: #4169E1;
+  font-weight: 700;
+}
+
+.gift-order-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #4169E1;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .order-detail-row {
   border-bottom: 1px solid rgba(15,23,42,.08);
 }
@@ -3539,6 +3570,15 @@ body.theme-dark .category-item h4 {
 
 .summary-row.summary-highlight strong {
   color: #8e004d;
+}
+
+.summary-row.summary-gift-row {
+  color: #4169E1;
+  font-weight: 700;
+}
+
+.summary-row.summary-gift-row strong {
+  color: #4169E1;
 }
 
 .form-grid {
