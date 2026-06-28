@@ -1002,7 +1002,9 @@ function saveCartState() {
     const compactCart = (state.cart || []).map(item => ({
       id: item.id,
       quantity: item.quantity,
-      options: item.options || []
+      options: item.options || [],
+      isGift: Boolean(item.isGift),
+      giftTitle: item.isGift ? item.name : ''
     }));
     localStorage.setItem(key, JSON.stringify({ items: compactCart }));
     return true;
@@ -1065,6 +1067,19 @@ function rebuildCartWithProductData(compactCart) {
   if (!compactCart || !Array.isArray(compactCart)) return [];
   
   const fullCart = compactCart.map(compact => {
+    if (compact.isGift) {
+      return {
+        id: compact.id,
+        name: compact.giftTitle || 'هدية',
+        price: 0,
+        img: '',
+        quantity: compact.quantity,
+        options: compact.options || [],
+        category: 'gifts',
+        isGift: true
+      };
+    }
+
     const product = state.products.find(p => p.id === compact.id);
     if (!product) return null;
     return {
@@ -3120,6 +3135,37 @@ function closeGiftModal() {
   document.body.classList.remove('gift-modal-open');
 }
 
+function claimGiftFromModal() {
+  const modal = document.getElementById('gift-modal');
+  const giftTitle = modal?.querySelector('.gift-modal-name')?.textContent?.trim() || '';
+  const giftIndex = Number(modal?.dataset.giftIndex ?? -1);
+  if (!giftTitle) return;
+
+  const existingGift = state.cart.find(item => item.isGift);
+  if (existingGift) {
+    existingGift.name = giftTitle;
+    existingGift.giftIndex = giftIndex;
+  } else {
+    state.cart.push({
+      id: `gift-${Date.now()}-${giftIndex}`,
+      name: giftTitle,
+      price: 0,
+      img: '',
+      quantity: 1,
+      options: [],
+      category: 'gifts',
+      isGift: true,
+      giftIndex
+    });
+  }
+
+  saveCartState();
+  renderCart();
+  buildSummary();
+  closeGiftModal();
+  window.location.hash = '#checkout';
+}
+
 function openGiftModal(index) {
   const enabledItems = (state.gifts.items || []).filter(item => item.title && item.title.trim());
   const item = enabledItems[index];
@@ -3133,6 +3179,7 @@ function openGiftModal(index) {
   const modal = document.createElement('div');
   modal.id = 'gift-modal';
   modal.className = 'gift-modal-overlay';
+  modal.dataset.giftIndex = String(index);
   modal.innerHTML = `
     <div class="gift-modal-backdrop" onclick="closeGiftModal()"></div>
     <div class="gift-modal-shell">
@@ -3151,7 +3198,7 @@ function openGiftModal(index) {
         </div>
         <div class="gift-modal-name">${item.title}</div>
       </div>
-      <button type="button" class="gift-modal-button" onclick="closeGiftModal()">احصل على الهديه</button>
+      <button type="button" class="gift-modal-button" onclick="claimGiftFromModal()">احصل على الهديه</button>
     </div>
   `;
 
@@ -3402,26 +3449,34 @@ function buildSummary() {
   const coupon = couponCode ? findValidCoupon(couponCode) : null;
   const discount = coupon ? getCouponDiscount(totalProducts, coupon) : 0;
   const grandTotal = totalProducts + delivery - discount;
+  const giftItem = state.cart.find(item => item.isGift);
   const giftRewardButton = document.getElementById('gift-reward-button');
   if (giftRewardButton) {
     const rewardVisible = grandTotal >= 2500 && !coupon;
-    giftRewardButton.classList.toggle('hidden', !rewardVisible);
+    giftRewardButton.classList.toggle('hidden', !rewardVisible || Boolean(giftItem));
   }
+  const regularItems = state.cart.filter(item => !item.isGift);
   orderSummary.innerHTML = `
     <div class="summary-box">
       <h3>ملخص الطلب</h3>
-      ${state.cart.map(item => `
+      ${regularItems.map(item => `
         <div class="summary-row">
           <span>${item.quantity}x ${item.name}</span>
           <strong>${formatPrice(item.price * item.quantity)}</strong>
         </div>
       `).join('')}
-      <div class="summary-row" style="border-top:1px solid rgba(255,255,255,.08); padding-top:12px; margin-top:16px;">
+      ${giftItem ? `
+        <div class="summary-row summary-gift-row">
+          <span>${giftItem.name}</span>
+          <strong>هدية</strong>
+        </div>
+      ` : ''}
+      <div class="summary-row summary-highlight" style="border-top:1px solid rgba(255,255,255,.08); padding-top:12px; margin-top:16px;">
         <span>قيمة التوصيل (${selectedGov})</span>
         <strong>${formatPrice(delivery)}</strong>
       </div>
       ${discount > 0 ? `
-        <div class="summary-row" style="padding-top:12px;">
+        <div class="summary-row summary-highlight" style="padding-top:12px;">
           <span>خصم كوبون${coupon.type === 'percent' ? ` (${coupon.value}%)` : ''}</span>
           <strong>-${formatPrice(discount)}</strong>
         </div>
@@ -3431,7 +3486,7 @@ function buildSummary() {
           <strong></strong>
         </div>
       ` : ''}
-      <div class="summary-row" style="border-top:1px solid rgba(255,255,255,.08); padding-top:12px; margin-top:16px; font-size:1.05rem;">
+      <div class="summary-row summary-highlight" style="border-top:1px solid rgba(255,255,255,.08); padding-top:12px; margin-top:16px; font-size:1.05rem;">
         <span>المجموع الكلي</span>
         <strong>${formatPrice(grandTotal)}</strong>
       </div>
@@ -3498,7 +3553,7 @@ async function submitOrder(event) {
     coupon: couponCode,
     couponDiscount,
     shippingCost,
-    items: state.cart.map(item => ({ id: item.id, name: item.name, qty: item.quantity, price: item.price, img: item.img, options: item.options || [] })),
+    items: state.cart.map(item => ({ id: item.id, name: item.name, qty: item.quantity, price: item.price, img: item.img, options: item.options || [], isGift: Boolean(item.isGift) })),
     total: baseTotal + shippingCost - couponDiscount,
     date: now.toLocaleString('ar-EG'),
     createdAt: now.toISOString(),
@@ -3589,14 +3644,14 @@ function renderOrders(search = '') {
             <span>الإجمالي</span>
           </div>
           ${order.items.map(item => `
-            <div class="order-detail-row">
+            <div class="order-detail-row ${item.isGift ? 'order-detail-gift' : ''}">
               <div class="detail-image">
                 <img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}">
               </div>
-              <span class="detail-name">${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
-              <span class="detail-cell">${item.price.toLocaleString()}</span>
-              <span class="detail-cell">${item.qty}</span>
-              <span class="detail-cell">${(item.price * item.qty).toLocaleString()}</span>
+              <span class="detail-name">${item.isGift ? '<span class="gift-order-pill">هدية</span>' : ''}${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
+              <span class="detail-cell">${item.isGift ? 'مجانًا' : (item.price || 0).toLocaleString()}</span>
+              <span class="detail-cell">${item.isGift ? '1' : item.qty}</span>
+              <span class="detail-cell">${item.isGift ? 'مجانًا' : ((item.price || 0) * item.qty).toLocaleString()}</span>
             </div>
           `).join('')}
         </div>
@@ -4765,12 +4820,12 @@ function renderUserOrders() {
               <span>الإجمالي</span>
             </div>
             ${order.items.map(item => `
-              <div class="order-detail-row">
+              <div class="order-detail-row ${item.isGift ? 'order-detail-gift' : ''}">
                 <div class="detail-image"><img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}" class="order-item-image"></div>
-                <span class="detail-name">${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
-                <span class="detail-cell">${formatPrice(item.price || 0)}</span>
-                <span class="detail-cell">${item.qty}</span>
-                <span class="detail-cell">${formatPrice((item.price || 0) * item.qty)}</span>
+                <span class="detail-name">${item.isGift ? '<span class="gift-order-pill">هدية</span>' : ''}${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
+                <span class="detail-cell">${item.isGift ? 'مجانًا' : formatPrice(item.price || 0)}</span>
+                <span class="detail-cell">${item.isGift ? '1' : item.qty}</span>
+                <span class="detail-cell">${item.isGift ? 'مجانًا' : formatPrice((item.price || 0) * item.qty)}</span>
               </div>
             `).join('')}
           </div>
