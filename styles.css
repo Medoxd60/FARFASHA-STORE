@@ -3532,6 +3532,15 @@ body.theme-dark .category-item h4 {
   color: var(--text);
 }
 
+.summary-row.summary-highlight {
+  color: #8e004d;
+  font-weight: 700;
+}
+
+.summary-row.summary-highlight strong {
+  color: #8e004d;
+}
+
 .form-grid {
   display: grid;
   gap: 18px;
