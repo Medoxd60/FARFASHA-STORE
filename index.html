@@ -223,6 +223,17 @@
       <div class="cards-grid" id="products-grid"></div>
     </section>
 
+    <section id="section-gifts" class="section-page hidden">
+      <div class="section-title">
+        <div>
+          <h2>الهدايا</h2>
+          <p>تصفح مجموعة الهدايا المميزة المتاحة.</p>
+        </div>
+        <button class="secondary-btn" onclick="window.location.hash='#home'">العودة للرئيسية</button>
+      </div>
+      <div class="cards-grid" id="gifts-grid"></div>
+    </section>
+
     <section id="section-category" class="section-page hidden">
       <div class="section-title">
         <div>
@@ -299,6 +310,7 @@
             </select></label>
           </div>
           <button class="btn" type="submit">إرسال الطلب</button>
+          <button type="button" id="gift-reward-button" class="btn secondary-btn hidden" onclick="goToGiftPage()">احصل على هديتك</button>
         </form>
         <div class="summary-box" id="checkout-summary"></div>
       </div>
@@ -420,7 +432,10 @@
             <form id="category-form">
               <label>اسم الفئة<input id="category-name" type="text" placeholder="اسم الفئة" required></label>
               <label>اختر صورة أو أيقونة من الجهاز<input id="category-img-input" type="file" accept="image/*"></label>
-              <button class="btn" type="submit" id="category-submit-btn">إضافة فئة</button>
+              <div class="form-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn" type="submit" id="category-submit-btn">إضافة فئة</button>
+                <button class="secondary-btn hidden" type="button" id="cancel-category-edit-btn" onclick="cancelCategoryEdit()">إلغاء</button>
+              </div>
             </form>
             <div id="category-preview-list" class="category-admin-grid" style="margin-top:18px;"></div>
           </article>
@@ -432,7 +447,10 @@
               <label>رابط تليجرام<input id="telegram-url" type="url" placeholder="https://t.me/..."></label>
               <label>رابط واتساب<input id="whatsapp-url" type="url" placeholder="https://wa.me/..."></label>
               <label>رابط فيسبوك<input id="facebook-url" type="url" placeholder="https://facebook.com/..."></label>
-              <button class="btn" type="submit">حفظ الروابط</button>
+              <div class="form-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn" type="submit">حفظ الروابط</button>
+                <button class="secondary-btn hidden" type="button" id="cancel-social-links-btn" onclick="cancelSocialLinksEdit()">إلغاء</button>
+              </div>
             </form>
           </article>
         </div>
@@ -473,7 +491,10 @@
                   </div>
                 </div>
               </div>
-              <button class="btn" type="submit">إضافة صورة</button>
+              <div class="form-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn" type="submit">إضافة صورة</button>
+                <button class="secondary-btn hidden" type="button" id="cancel-review-image-btn" onclick="cancelReviewImageEdit()">إلغاء</button>
+              </div>
             </form>
             <div id="review-images-preview" class="cards-grid" style="margin-top:18px;"></div>
           </article>
@@ -507,7 +528,10 @@
                 </div>
               </label>
               <input id="coupon-id" type="hidden">
-              <button class="btn" type="submit">حفظ الكوبون</button>
+              <div class="form-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn" type="submit">حفظ الكوبون</button>
+                <button class="secondary-btn hidden" type="button" id="cancel-coupon-edit-btn" onclick="cancelCouponEdit()">إلغاء</button>
+              </div>
             </form>
           </article>
           <div class="admin-search-bar" style="margin-top: 18px;">
@@ -539,6 +563,7 @@
                 <span class="slider"></span>
               </div>
             </label>
+            <button class="btn" onclick="window.location.hash='#gifts'" style="margin-top: 12px;">الذهاب للصفحة</button>
             <div class="gifts-fields-grid" id="gifts-fields-container"></div>
           </article>
         </div>
