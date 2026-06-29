@@ -2478,6 +2478,36 @@ body.gift-modal-open {
   text-overflow: ellipsis;
 }
 
+.order-detail-row.order-detail-gift {
+  background: rgba(65, 105, 225, 0.08);
+  border-left: 4px solid #4169E1;
+}
+
+.order-detail-row.order-detail-gift .detail-cell,
+.order-detail-row.order-detail-gift .detail-name {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.order-detail-row.order-detail-gift .detail-name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.order-detail-row.order-detail-gift .gift-order-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .detail-image {
   display: flex;
   align-items: center;
