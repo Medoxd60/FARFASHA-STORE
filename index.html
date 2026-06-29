@@ -310,6 +310,7 @@
             </select></label>
           </div>
           <button class="btn" type="submit">إرسال الطلب</button>
+          <!-- هذا الزر يظهر فقط عند تفعيل صفحة الهدايا من لوحة التحكم وتحقيق شروط المنحة -->
           <button type="button" id="gift-reward-button" class="btn secondary-btn hidden" onclick="goToGiftPage()">احصل على هديتك</button>
         </form>
         <div class="summary-box" id="checkout-summary"></div>
@@ -557,6 +558,7 @@
         <div class="admin-tab-panel hidden" data-tab="gifts">
           <article class="form-card">
             <h3>إدارة الهدايا</h3>
+            <!-- هذا السويتش يحدد ما إذا كانت صفحة الهدايا متاحة في الموقع وعرض زر الهدية في صفحة الإتمام -->
             <label class="switch-row">تفعيل صفحة الهدايا
               <div class="switch">
                 <input type="checkbox" id="gifts-enabled-toggle" onchange="setGiftsEnabled(event)">
