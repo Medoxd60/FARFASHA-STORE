@@ -148,6 +148,7 @@ let state = {
     'جنوب سيناء': 140
   },
   coupons: [],
+  // إعدادات الهدايا: تتحكم في تفعيل صفحة الهدايا وإظهار زرها في صفحة إتمام الطلب
   gifts: {
     enabled: false,
     items: [
@@ -2996,9 +2997,11 @@ function openSliderImagePicker() {
 }
 
 function setGiftsEnabled(event) {
+  // عند تغيير السويتش في لوحة التحكم، نحدث حالة الهدايا ونعيد رسم زر الإتمام
   const enabled = event?.target?.checked ?? false;
   state.gifts.enabled = enabled;
   saveGiftSettings();
+  if (typeof buildSummary === 'function') buildSummary();
   showTopNotification(`صفحة الهدايا ${enabled ? 'مفعلة' : 'معطلة'}`, 2200, 'success');
 }
 
@@ -3036,6 +3039,7 @@ function removeGiftImage(index) {
 }
 
 function saveGiftSettings() {
+  // حفظ حالة تفعيل الهدايا وقائمة الهدايا في التخزين عن بعد
   const payload = {
     enabled: Boolean(state.gifts.enabled),
     items: state.gifts.items.map(item => ({
@@ -3047,6 +3051,7 @@ function saveGiftSettings() {
 }
 
 function renderGiftFields() {
+  // عرض حقول إدارة الهدايا في لوحة التحكم مع وضع الحالة الحالية للسويتش
   const container = document.getElementById('gifts-fields-container');
   if (!container) return;
   
@@ -3094,6 +3099,7 @@ function renderGiftFields() {
   `).join('');
 }
 
+// SVG افتراضي يظهر كـ visual للهدية عند عدم وجود صورة مرفوعة
 const giftsPageSvg = `
   <svg class="gift-card-svg" width="800" height="800" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
     <path d="M884.4 389v101.6c0 16-13 29-29 29H570.2V360h285.1c16.1 0 29.1 13 29.1 29" fill="#fe97ac"/>
@@ -3127,6 +3133,7 @@ const giftsPageSvg = `
 `;
 
 function closeGiftModal() {
+  // إغلاق نافذة اختيار الهدية بعد الضغط على زر الإغلاق أو الخلفية
   const modal = document.getElementById('gift-modal');
   if (modal) {
     modal.classList.remove('is-visible');
@@ -3136,6 +3143,7 @@ function closeGiftModal() {
 }
 
 function claimGiftFromModal() {
+  // عند الضغط على "احصل على الهديه" نضيف الهدية إلى السلة وننتقل إلى صفحة الإتمام
   const modal = document.getElementById('gift-modal');
   const giftTitle = modal?.querySelector('.gift-modal-name')?.textContent?.trim() || '';
   const giftIndex = Number(modal?.dataset.giftIndex ?? -1);
@@ -3167,6 +3175,7 @@ function claimGiftFromModal() {
 }
 
 function openGiftModal(index) {
+  // فتح نافذة الهدايا المختارة مع عرض تفاصيل الهدية قبل الإضافة للسلة
   const enabledItems = (state.gifts.items || []).filter(item => item.title && item.title.trim());
   const item = enabledItems[index];
   if (!item) return;
@@ -3218,6 +3227,7 @@ function selectGiftCard(index) {
 }
 
 function renderGiftsPage() {
+  // رسم صفحة الهدايا من قائمة الهدايا المفعلة فقط
   const giftsGrid = document.getElementById('gifts-grid');
   if (!giftsGrid) return;
   
@@ -3452,8 +3462,9 @@ function buildSummary() {
   const giftItem = state.cart.find(item => item.isGift);
   const giftRewardButton = document.getElementById('gift-reward-button');
   if (giftRewardButton) {
-    const rewardVisible = grandTotal >= 2500 && !coupon;
-    giftRewardButton.classList.toggle('hidden', !rewardVisible || Boolean(giftItem));
+    // زر "احصل على هديتك" يظهر فقط إذا كانت صفحة الهدايا مفعلة، والمجموع يحقق الحد المطلوب، ولم يتم استخدام كوبون، ولم يتم اختيار هدية بالفعل
+    const rewardVisible = state.gifts.enabled && grandTotal >= 2500 && !coupon && !Boolean(giftItem);
+    giftRewardButton.classList.toggle('hidden', !rewardVisible);
   }
   const regularItems = state.cart.filter(item => !item.isGift);
   orderSummary.innerHTML = `
@@ -3643,17 +3654,20 @@ function renderOrders(search = '') {
             <span>الكمية</span>
             <span>الإجمالي</span>
           </div>
-          ${order.items.map(item => `
-            <div class="order-detail-row ${item.isGift ? 'order-detail-gift' : ''}">
+          ${order.items.map(item => {
+            const isGiftLine = Boolean(item.isGift) || String(item.category || '').toLowerCase() === 'gifts';
+            return `
+            <div class="order-detail-row ${isGiftLine ? 'order-detail-gift' : ''}">
               <div class="detail-image">
                 <img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}">
               </div>
-              <span class="detail-name">${item.isGift ? '<span class="gift-order-pill">هدية</span>' : ''}${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
-              <span class="detail-cell">${item.isGift ? 'مجانًا' : (item.price || 0).toLocaleString()}</span>
-              <span class="detail-cell">${item.isGift ? '1' : item.qty}</span>
-              <span class="detail-cell">${item.isGift ? 'مجانًا' : ((item.price || 0) * item.qty).toLocaleString()}</span>
+              <span class="detail-name">${isGiftLine ? '<span class="gift-order-pill">هدية</span>' : ''}${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
+              <span class="detail-cell">${isGiftLine ? 'هدية' : (item.price || 0).toLocaleString()}</span>
+              <span class="detail-cell">${isGiftLine ? '1' : item.qty}</span>
+              <span class="detail-cell">${isGiftLine ? 'هدية' : ((item.price || 0) * item.qty).toLocaleString()}</span>
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </div>
     </article>
@@ -4819,15 +4833,19 @@ function renderUserOrders() {
               <span>الكمية</span>
               <span>الإجمالي</span>
             </div>
-            ${order.items.map(item => `
-              <div class="order-detail-row ${item.isGift ? 'order-detail-gift' : ''}">
+            ${order.items.map(item => {
+              const isGiftLine = Boolean(item.isGift) || String(item.category || '').toLowerCase() === 'gifts';
+              const optionsHtml = Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o => escapeHtml(o)).join(' • ')}</div>` : '';
+              return `
+              <div class="order-detail-row ${isGiftLine ? 'order-detail-gift' : ''}">
                 <div class="detail-image"><img src="${item.img || 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80'}" alt="${item.name}" class="order-item-image"></div>
-                <span class="detail-name">${item.isGift ? '<span class="gift-order-pill">هدية</span>' : ''}${item.name}${Array.isArray(item.options) && item.options.length ? `<div class="cart-item-options">${item.options.map(o=>escapeHtml(o)).join(' • ')}</div>` : ''}</span>
-                <span class="detail-cell">${item.isGift ? 'مجانًا' : formatPrice(item.price || 0)}</span>
-                <span class="detail-cell">${item.isGift ? '1' : item.qty}</span>
-                <span class="detail-cell">${item.isGift ? 'مجانًا' : formatPrice((item.price || 0) * item.qty)}</span>
+                <span class="detail-name">${isGiftLine ? '<span class="gift-order-pill">هدية</span>' : ''}${item.name}${optionsHtml}</span>
+                <span class="detail-cell">${isGiftLine ? 'هدية' : formatPrice(item.price || 0)}</span>
+                <span class="detail-cell">${isGiftLine ? '1' : item.qty}</span>
+                <span class="detail-cell">${isGiftLine ? 'هدية' : formatPrice((item.price || 0) * item.qty)}</span>
               </div>
-            `).join('')}
+            `;
+            }).join('')}
           </div>
         </div>
       </article>
